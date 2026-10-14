@@ -213,7 +213,82 @@ function toggleWishlist(productId, event) {
     wishlist.add(productId);
     showToast("Saved to your wishlist!", "success");
   }
+
+  // Update wishlist indicator on mobile bar
+  const dot = document.getElementById("wishlistDot");
+  if (dot) {
+    dot.classList.toggle("active", wishlist.size > 0);
+  }
+
   renderProducts();
+}
+
+function filterWishlistItems() {
+  if (wishlist.size === 0) {
+    showToast("You haven't saved any items yet! Tap the heart icon on any product.", "info");
+    return;
+  }
+  
+  activeFilter = "saved";
+  activeCategory = "all";
+  currentSearchTerm = "";
+
+  document.querySelectorAll(".mobile-bar-btn").forEach(btn => btn.classList.remove("active"));
+  const savedBarBtn = document.getElementById("barSavedBtn");
+  if (savedBarBtn) savedBarBtn.classList.add("active");
+
+  const container = document.getElementById("productsGridContainer");
+  const heading = document.getElementById("productsHeading");
+  const subheading = document.getElementById("productsSubheading");
+  if (heading) heading.textContent = "Saved / Wishlist Items";
+  if (subheading) subheading.textContent = `Showing ${wishlist.size} saved campus item${wishlist.size === 1 ? '' : 's'}.`;
+
+  const savedProducts = products.filter(p => wishlist.has(p.id));
+  if (container) {
+    container.innerHTML = savedProducts.map(product => {
+      const badgeClass = `badge-${product.badgeType || 'popular'}`;
+      return `
+        <article class="product-card" data-id="${product.id}">
+          <div class="product-img-box">
+            <span class="product-badge ${badgeClass}">${product.badge}</span>
+            <button 
+              type="button" 
+              class="wishlist-btn active" 
+              onclick="toggleWishlist('${product.id}', event)" 
+              aria-label="Remove from wishlist"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+              </svg>
+            </button>
+            <img src="${product.image}" alt="${product.title}" class="product-img" loading="lazy">
+          </div>
+          <div class="product-body">
+            <h3 class="product-title" title="${product.title}">${product.title}</h3>
+            <div class="product-price">${product.formattedPrice || `KSh ${product.price.toLocaleString()}`}</div>
+            <div class="seller-row">
+              <img src="${product.seller.avatar || 'assets/images/avatar_brian.jpg'}" alt="${product.seller.name}" class="seller-avatar">
+              <div class="seller-details">
+                <span class="seller-name">${product.seller.name}</span>
+                <span class="seller-dept">${product.seller.department}</span>
+              </div>
+            </div>
+            <div class="location-row">
+              <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span>Chuka University</span>
+            </div>
+            <button type="button" class="btn-view-details" onclick="openProductModal('${product.id}')">
+              <span>View Details</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  const section = document.getElementById("featuredSection");
+  if (section) section.scrollIntoView({ behavior: "smooth" });
 }
 
 // ================= PRODUCT DETAILS MODAL =================
@@ -356,6 +431,27 @@ function closeAccountMenu() {
   if (menu) menu.classList.remove("show");
 }
 
+// ================= MOBILE DRAWER =================
+function openMobileDrawer() {
+  const drawer = document.getElementById("mobileDrawer");
+  const overlay = document.getElementById("mobileDrawerOverlay");
+  if (drawer && overlay) {
+    drawer.classList.add("open");
+    overlay.classList.add("open");
+    document.body.style.overflow = "hidden";
+  }
+}
+
+function closeMobileDrawer() {
+  const drawer = document.getElementById("mobileDrawer");
+  const overlay = document.getElementById("mobileDrawerOverlay");
+  if (drawer && overlay) {
+    drawer.classList.remove("open");
+    overlay.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+}
+
 // ================= TOAST NOTIFICATION =================
 function showToast(message, type = "info") {
   const container = document.getElementById("toastContainer");
@@ -442,6 +538,35 @@ function initEventListeners() {
 
   const cartOverlay = document.getElementById("cartOverlay");
   if (cartOverlay) cartOverlay.addEventListener("click", closeCartDrawer);
+
+  // Mobile Drawer Toggle
+  const mobileToggleBtn = document.getElementById("mobileMenuToggleBtn");
+  if (mobileToggleBtn) mobileToggleBtn.addEventListener("click", openMobileDrawer);
+
+  const closeMobileBtn = document.getElementById("closeMobileDrawerBtn");
+  if (closeMobileBtn) closeMobileBtn.addEventListener("click", closeMobileDrawer);
+
+  const mobileOverlay = document.getElementById("mobileDrawerOverlay");
+  if (mobileOverlay) mobileOverlay.addEventListener("click", closeMobileDrawer);
+
+  // Mobile Bottom Bar active state sync
+  const barHomeBtn = document.getElementById("barHomeBtn");
+  if (barHomeBtn) {
+    barHomeBtn.addEventListener("click", () => {
+      document.querySelectorAll(".mobile-bar-btn").forEach(b => b.classList.remove("active"));
+      barHomeBtn.classList.add("active");
+      resetAllFilters();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
+  const barCatBtn = document.getElementById("barCatBtn");
+  if (barCatBtn) {
+    barCatBtn.addEventListener("click", () => {
+      document.querySelectorAll(".mobile-bar-btn").forEach(b => b.classList.remove("active"));
+      barCatBtn.classList.add("active");
+    });
+  }
 
   // Sell buttons
   const navSellBtn = document.getElementById("navSellBtn");
