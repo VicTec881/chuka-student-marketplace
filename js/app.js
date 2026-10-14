@@ -729,3 +729,19 @@ function openTermsModal() {
 function openPrivacyModal() {
   showToast("Privacy: Student contacts are only visible to logged-in campus members.", "info");
 }
+
+// Quick search from Hero trending tag pills
+function quickHeroSearch(term) {
+  const searchInput = document.getElementById("globalSearchInput");
+  if (searchInput) {
+    searchInput.value = term;
+    currentSearchTerm = term;
+    const clearBtn = document.getElementById("searchClearBtn");
+    if (clearBtn) clearBtn.style.display = "block";
+    renderProducts();
+  }
+  const section = document.getElementById("featuredSection");
+  if (section) {
+    section.scrollIntoView({ behavior: "smooth" });
+  }
+}
