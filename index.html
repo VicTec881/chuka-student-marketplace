@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chuka University Student Marketplace | Buy, Sell & Support Fellow Students</title>
+  <meta name="description" content="A platform for Chuka University students to buy and sell products easily, safely and conveniently. Electronics, books, fashion, food and campus essentials.">
+  <link rel="icon" type="image/png" href="assets/images/chuka_logo.png">
+  
+  <!-- CSS Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ================= SITE HEADER / NAVBAR ================= -->
+  <header class="site-header">
+    <div class="container">
+      <nav class="navbar" aria-label="Main Navigation">
+        <!-- Brand Crest & Text -->
+        <a href="#" class="brand-link" id="brandHomeLink" aria-label="Chuka University Student Marketplace Home">
+          <img src="assets/images/chuka_logo.png" alt="Chuka University Emblem" class="brand-crest">
+          <div class="brand-text-group">
+            <span class="brand-title">Chuka University</span>
+            <span class="brand-subtitle">Student Marketplace</span>
+            <span class="brand-tagline">Buy • Sell • Support Fellow Students</span>
+          </div>
+        </a>
+
+        <!-- Search Bar -->
+        <div class="search-wrapper">
+          <div class="search-input-box">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input 
+              type="text" 
+              id="globalSearchInput" 
+              class="search-input" 
+              placeholder="Search for products (e.g. laptop, books, fashion...)"
+              autocomplete="off"
+              aria-label="Search products"
+            >
+            <button type="button" id="searchClearBtn" class="search-clear-btn" aria-label="Clear search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Navigation Action Buttons -->
+        <div class="nav-actions">
+          <a href="#" class="nav-item active" id="navHomeBtn">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Home</span>
+          </a>
+          
+          <a href="#featuredSection" class="nav-item" id="navShopBtn">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            <span>Shop</span>
+          </a>
+
+          <button type="button" class="nav-item" id="navSellBtn">
+            <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            <span>Sell</span>
+          </button>
+
+          <!-- Account Dropdown -->
+          <div class="account-dropdown-wrapper">
+            <button type="button" class="account-btn" id="accountMenuBtn" aria-expanded="false" aria-haspopup="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>My Account</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div class="account-menu" id="accountDropdown">
+              <div class="account-menu-header">
+                <div class="account-menu-user">Brian Mwangi</div>
+                <div class="account-menu-badge">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  Verified Student
+                </div>
+              </div>
+              <a href="#" class="account-menu-item" id="accountListingsBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="8" height="8" x="3" y="3" rx="1"/><rect width="8" height="8" x="13" y="3" rx="1"/><rect width="8" height="8" x="3" y="13" rx="1"/><rect width="8" height="8" x="13" y="13" rx="1"/></svg>
+                <span>My Listings</span>
+              </a>
+              <a href="#" class="account-menu-item" id="accountSavedBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                <span>Saved Items</span>
+              </a>
+              <a href="#" class="account-menu-item" id="accountOrdersBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/></svg>
+                <span>Purchase Inquiries</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Cart Trigger -->
+          <button type="button" class="cart-btn" id="openCartBtn" aria-label="Open Shopping Cart">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+            <span class="cart-count-badge" id="cartBadge">0</span>
+          </button>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ================= HERO BANNER ================= -->
+  <section class="hero-section" id="heroSection">
+    <div class="hero-bg-wrapper">
+      <img src="assets/images/chuka_campus_hero.jpg" alt="Chuka University Main Campus Aerial View" class="hero-bg-img">
+      <div class="hero-gradient-overlay"></div>
+    </div>
+    <div class="container">
+      <div class="hero-content">
+        <p class="hero-welcome">Welcome to</p>
+        <h1 class="hero-title">
+          <span class="highlight-blue">Chuka</span> University<br>Student Marketplace
+        </h1>
+        <p class="hero-description">
+          A platform for Chuka University students to buy and sell products easily, safely and conveniently.
+        </p>
+        <div class="hero-cta-group">
+          <a href="#featuredSection" class="btn-primary" id="heroBrowseBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            <span>Browse Products</span>
+          </a>
+          <button type="button" class="btn-secondary" id="heroSellBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            <span>Start Selling</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SHOP BY CATEGORY ================= -->
+  <section class="section-padding" id="categoriesSection">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Shop by Category</h2>
+          <p class="section-subtitle">Find what you need, from fellow Chuka University students.</p>
+        </div>
+        <a href="#featuredSection" class="section-link" id="viewAllCategoriesBtn">
+          <span>View All Categories</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </a>
+      </div>
+
+      <!-- 8 Categories matching screenshot -->
+      <div class="category-grid" id="categoryGridContainer">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FEATURED PRODUCTS ================= -->
+  <section class="featured-section" id="featuredSection">
+    <div class="container">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title" id="productsHeading">Featured Products</h2>
+          <p class="section-subtitle" id="productsSubheading">Showing all verified listings from fellow students on campus.</p>
+        </div>
+        <a href="#featuredSection" class="section-link" id="viewAllProductsBtn">
+          <span>View All Products</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </a>
+      </div>
+
+      <!-- Quick Filter Chips -->
+      <div class="product-filter-bar" id="productFilterBar">
+        <button class="filter-chip active" data-filter="all">All Items</button>
+        <button class="filter-chip" data-filter="popular">Popular</button>
+        <button class="filter-chip" data-filter="best-deal">Best Deals</button>
+        <button class="filter-chip" data-filter="electronics">Electronics</button>
+        <button class="filter-chip" data-filter="books">Books & Stationery</button>
+        <button class="filter-chip" data-filter="fashion">Clothing & Fashion</button>
+        <button class="filter-chip" data-filter="phones">Phones</button>
+        <button class="filter-chip" data-filter="food">Food & Meals</button>
+        <button class="filter-chip" data-filter="under1000">Under KSh 1,000</button>
+      </div>
+
+      <!-- Products Grid -->
+      <div class="products-grid" id="productsGridContainer">
+        <!-- Rendered dynamically by app.js -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TRUST & VALUE PROPOSITION BAR ================= -->
+  <section class="trust-bar-section">
+    <div class="container">
+      <div class="trust-grid">
+        <!-- Item 1: Safe & Trusted -->
+        <div class="trust-item">
+          <div class="trust-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="trust-content">
+            <h3 class="trust-title">Safe & Trusted</h3>
+            <p class="trust-desc">Connect with verified Chuka University students</p>
+          </div>
+        </div>
+
+        <!-- Item 2: Support Fellow Students -->
+        <div class="trust-item">
+          <div class="trust-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div class="trust-content">
+            <h3 class="trust-title">Support Fellow Students</h3>
+            <p class="trust-desc">Keep your money within the campus community</p>
+          </div>
+        </div>
+
+        <!-- Item 3: Affordable -->
+        <div class="trust-item">
+          <div class="trust-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
+          </div>
+          <div class="trust-content">
+            <h3 class="trust-title">Affordable</h3>
+            <p class="trust-desc">Get the best deals, directly from students</p>
+          </div>
+        </div>
+
+        <!-- Item 4: Easy to Use -->
+        <div class="trust-item">
+          <div class="trust-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="trust-content">
+            <h3 class="trust-title">Easy to Use</h3>
+            <p class="trust-desc">List or buy in just a few clicks</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <!-- Column 1: Brand & Campus Info -->
+        <div class="footer-brand">
+          <div class="footer-logo-row">
+            <img src="assets/images/chuka_logo.png" alt="Chuka University Emblem" class="footer-crest">
+            <div>
+              <div class="footer-brand-title">Chuka University</div>
+              <div class="footer-brand-subtitle">Student Marketplace</div>
+            </div>
+          </div>
+          <div class="footer-brand-motto">Together We Grow</div>
+          <p class="footer-campus-info">
+            Main Campus, Ndagani, P.O. Box 109-60400, Chuka, Tharaka Nithi County, Kenya.
+          </p>
+        </div>
+
+        <!-- Column 2: Quick Links -->
+        <div>
+          <h4 class="footer-col-title">Quick Links</h4>
+          <ul class="footer-links-list">
+            <li><a href="#" class="footer-link">Home</a></li>
+            <li><a href="#featuredSection" class="footer-link">Shop</a></li>
+            <li><a href="javascript:void(0)" onclick="openPostModal()" class="footer-link">Sell</a></li>
+            <li><a href="javascript:void(0)" onclick="toggleAccountMenu()" class="footer-link">My Account</a></li>
+          </ul>
+        </div>
+
+        <!-- Column 3: Help & Support -->
+        <div>
+          <h4 class="footer-col-title">Help & Support</h4>
+          <ul class="footer-links-list">
+            <li><a href="javascript:void(0)" onclick="openFaqModal()" class="footer-link">FAQs</a></li>
+            <li><a href="javascript:void(0)" onclick="openContactModal()" class="footer-link">Contact Us</a></li>
+            <li><a href="javascript:void(0)" onclick="openTermsModal()" class="footer-link">Terms & Conditions</a></li>
+            <li><a href="javascript:void(0)" onclick="openPrivacyModal()" class="footer-link">Privacy Policy</a></li>
+          </ul>
+        </div>
+
+        <!-- Column 4: Follow Us -->
+        <div>
+          <h4 class="footer-col-title">Follow Us</h4>
+          <div class="social-icons-group">
+            <a href="https://facebook.com" target="_blank" rel="noopener" class="social-circle" aria-label="Facebook">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            </a>
+            <a href="https://twitter.com" target="_blank" rel="noopener" class="social-circle" aria-label="X (Twitter)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            </a>
+            <a href="https://instagram.com" target="_blank" rel="noopener" class="social-circle" aria-label="Instagram">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            </a>
+            <a href="https://whatsapp.com" target="_blank" rel="noopener" class="social-circle" aria-label="WhatsApp Community">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <!-- Column 5: Right Tagline -->
+        <div class="footer-tagline-col">
+          <div class="built-for-text">Built for Chuka Students ❤️</div>
+          <div class="buy-sell-support-text">Buy. Sell. Support.</div>
+        </div>
+      </div>
+
+      <!-- Bottom Copyright -->
+      <div class="footer-bottom">
+        <p>&copy; 2025 Chuka University Student Marketplace. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================= PRODUCT DETAILS MODAL ================= -->
+  <div class="modal-overlay" id="productModalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalProductTitle">
+    <div class="modal-window">
+      <button type="button" class="modal-close-btn" id="closeProductModalBtn" aria-label="Close modal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div class="product-modal-grid" id="productModalBody">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= POST AN ITEM MODAL (START SELLING) ================= -->
+  <div class="modal-overlay" id="postModalOverlay" role="dialog" aria-modal="true">
+    <div class="modal-window">
+      <button type="button" class="modal-close-btn" id="closePostModalBtn" aria-label="Close modal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div class="post-form-content">
+        <div class="form-header">
+          <h2 class="form-title">Sell on Chuka Marketplace</h2>
+          <p class="form-subtitle">List your item in seconds for thousands of students on campus.</p>
+        </div>
+
+        <form id="postItemForm">
+          <div class="form-grid">
+            <div class="form-group col-span-2">
+              <label class="form-label" for="postTitle">Product Title *</label>
+              <input type="text" id="postTitle" class="form-control" placeholder="e.g. HP Pavilion Laptop 15-inch or Biology Textbook" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="postCategory">Category *</label>
+              <select id="postCategory" class="form-control" required>
+                <option value="electronics">Electronics</option>
+                <option value="books">Books & Stationery</option>
+                <option value="fashion">Clothing & Fashion</option>
+                <option value="phones">Phones & Accessories</option>
+                <option value="home">Home & Living</option>
+                <option value="food">Food & Beverages</option>
+                <option value="sports">Sports & Recreation</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="postPrice">Price (KSh) *</label>
+              <input type="number" id="postPrice" class="form-control" placeholder="e.g. 1500" min="10" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="postCondition">Condition *</label>
+              <select id="postCondition" class="form-control" required>
+                <option value="Brand New">Brand New</option>
+                <option value="Used - Like New">Used - Like New</option>
+                <option value="Used - Very Good">Used - Very Good</option>
+                <option value="Used - Fair">Used - Fair</option>
+                <option value="Freshly Prepared">Freshly Prepared</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="postBadge">Highlight Badge</label>
+              <select id="postBadge" class="form-control">
+                <option value="Popular">Popular (Blue)</option>
+                <option value="New" selected>New (Green)</option>
+                <option value="Best Deal">Best Deal (Orange)</option>
+                <option value="Fresh">Fresh (Emerald)</option>
+              </select>
+            </div>
+
+            <div class="form-group col-span-2">
+              <label class="form-label" for="postDescription">Short Description *</label>
+              <textarea id="postDescription" class="form-control" rows="2" placeholder="Briefly describe specs, condition, accessories included..." required></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="sellerName">Your Name *</label>
+              <input type="text" id="sellerName" class="form-control" placeholder="e.g. Brian Mwangi" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="sellerDept">Course & Year *</label>
+              <input type="text" id="sellerDept" class="form-control" placeholder="e.g. BSc. Computer Science" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="sellerPhone">Phone / WhatsApp *</label>
+              <input type="tel" id="sellerPhone" class="form-control" placeholder="e.g. 0712345678" required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="sellerLocation">Campus Meeting Spot *</label>
+              <input type="text" id="sellerLocation" class="form-control" placeholder="e.g. Science Complex / Hall 4" required>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; padding: 14px; margin-top: 10px;">
+            <span>Publish Listing Now</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= SLIDE-OVER CART DRAWER ================= -->
+  <div class="cart-drawer-overlay" id="cartOverlay"></div>
+  <aside class="cart-drawer" id="cartDrawer" aria-label="Shopping Cart Drawer">
+    <div class="cart-drawer-header">
+      <h3 class="cart-drawer-title">Campus Cart & Reservations</h3>
+      <button type="button" class="modal-close-btn" id="closeCartBtn" style="position: static;" aria-label="Close cart">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+
+    <!-- Empty State -->
+    <div id="cartEmptyState" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; flex: 1;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" style="margin-bottom: 12px;"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+      <h4 style="font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">Your Cart is Empty</h4>
+      <p style="font-size: 13px; color: #64748b; margin-bottom: 16px;">Browse student listings and reserve items for quick campus meetup.</p>
+      <a href="#featuredSection" onclick="closeCartDrawer()" class="btn-primary" style="font-size: 13.5px; padding: 10px 18px;">
+        Browse Products
+      </a>
+    </div>
+
+    <!-- Items List -->
+    <div class="cart-drawer-items" id="cartDrawerItems"></div>
+
+    <!-- Footer Checkout -->
+    <div class="cart-drawer-footer">
+      <div class="cart-total-row">
+        <span class="cart-total-label">Total Amount:</span>
+        <span class="cart-total-val" id="cartDrawerTotal">KSh 0</span>
+      </div>
+      <p style="font-size: 11.5px; color: #64748b; margin-bottom: 12px; display: flex; align-items: center; gap: 4px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Direct student-to-student handover. Pay on meetup via M-Pesa.
+      </p>
+      <button type="button" class="btn-checkout" id="cartCheckoutBtn">
+        <span>Proceed to Campus Reserve</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ================= CAMPUS CHECKOUT RESERVATION MODAL ================= -->
+  <div class="modal-overlay" id="checkoutModalOverlay">
+    <div class="modal-window" style="max-width: 500px;">
+      <button type="button" class="modal-close-btn" id="closeCheckoutModalBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div style="padding: 28px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="width: 56px; height: 56px; border-radius: 50%; background: #dcfce7; color: #16a34a; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h3 style="font-family: var(--font-heading); font-size: 20px; font-weight: 800; color: #0f172a;">Reserve for Campus Meetup</h3>
+          <p style="font-size: 13.5px; color: #64748b;">Connect directly with the student seller to inspect and receive your items.</p>
+        </div>
+
+        <form id="checkoutReserveForm">
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="buyerName">Your Full Name</label>
+            <input type="text" id="buyerName" class="form-control" value="Brian Mwangi" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="buyerPhone">Your Phone Number (M-Pesa / WhatsApp)</label>
+            <input type="tel" id="buyerPhone" class="form-control" placeholder="07XX XXX XXX" value="0712 345 678" required>
+          </div>
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" for="meetupLocation">Preferred Campus Meetup Spot</label>
+            <select id="meetupLocation" class="form-control">
+              <option value="Student Centre / Mess">Student Centre / Mess</option>
+              <option value="Main Library Lawn">Main Library Lawn</option>
+              <option value="Science Complex Entrance">Science Complex Entrance</option>
+              <option value="Pavilion Hostel Gate">Pavilion Hostel Gate</option>
+              <option value="Ndagani Commercial Center">Ndagani Commercial Center</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; padding: 13px;">
+            <span>Confirm Reservation</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/cart.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
