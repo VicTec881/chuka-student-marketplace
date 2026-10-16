@@ -490,3 +490,9 @@ function saveReservation(reservation) {
   all.unshift(reservation);
   return storageSet(STORAGE_KEYS.reservations, JSON.stringify(all));
 }
+
+// Allow the serverless API (Node) to reuse the sample catalogue as seed data.
+// In the browser `module` is undefined, so this does nothing.
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { INITIAL_CATEGORIES, INITIAL_PRODUCTS };
+}
