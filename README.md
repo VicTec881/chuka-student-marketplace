@@ -36,6 +36,31 @@ python -m http.server 8080
 ```
 Then navigate to `http://localhost:8080` in your web browser.
 
+## 🗄️ Shared Listings Backend (Vercel + MongoDB Atlas)
+
+Without a backend, listings live only in each visitor's browser. With the backend, every student sees the same marketplace. If the backend is not configured or not reachable, the site automatically falls back to browser-only mode, so it never breaks.
+
+**One-time setup**
+
+1. Create a free cluster at [MongoDB Atlas](https://www.mongodb.com/atlas). Create a database user, and under *Network Access* allow `0.0.0.0/0` (Vercel's server addresses change, so a fixed allow-list does not work).
+2. In Atlas choose **Connect → Drivers** and copy the connection string. Replace `<password>` with your database user's password.
+3. In Vercel open **Project → Settings → Environment Variables** and add `MONGODB_URI` (and optionally `MONGODB_DB`, `IP_HASH_SALT`). See `.env.example`. Never put these values in the code or in GitHub.
+4. Redeploy (Deployments → ⋯ → Redeploy) so the variables take effect.
+5. Open `https://<your-site>/api/listings`. You should see JSON with 11 sample listings. The first request creates the collection and inserts the samples.
+
+**API**
+
+| Method | Path | What it does |
+|---|---|---|
+| `GET` | `/api/listings` | Lists available listings, newest first (`?limit=` up to 200) |
+| `POST` | `/api/listings` | Creates a listing (JSON). Validated on the server; limited to 5 posts per hour per IP |
+
+Raw IP addresses are never stored, only a salted one-way hash used for the rate limit. Sample listings are marked `sample: true` in the database.
+
+**Known limits (until accounts are added)**: anyone can post, nobody can edit or delete a listing, and "My Listings" is remembered per browser.
+
+**Run the tests**: `npm install && npm test`
+
 ## 📁 Project Structure
 
 ```text
@@ -45,8 +70,14 @@ chuka-student-marketplace/
 │   └── styles.css               # Design system, CSS variables, responsive typography
 ├── js/
 │   ├── app.js                   # Live search, category filtering, seller modal logic
-│   ├── data.js                  # Initial campus product catalog & LocalStorage persistence
+│   ├── api.js                   # Client for the shared listings API (with offline fallback)
+│   ├── data.js                  # Sample catalogue & browser-only fallback storage
+│   ├── utils.js                 # HTML escaping, Kenyan phone handling (unit tested)
 │   └── cart.js                  # Cart manager, quantity adjusters, drawer UI
+├── api/
+│   └── listings.js              # Vercel serverless function: GET/POST /api/listings
+├── lib/                         # Server code: MongoDB connection, validation, handler, seed data
+├── tests/                       # Unit tests (npm test)
 └── assets/
     └── images/
         ├── chuka_logo.png        # Official Chuka University coat of arms emblem
