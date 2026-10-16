@@ -28,24 +28,53 @@ const CATEGORY_DEFAULT_IMAGES = {
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-document.addEventListener("DOMContentLoaded", () => {
-  products = getStoredProducts();
-  wishlist = getStoredWishlist();
+// true while we wait for the shared backend; false once listings are shown
+let listingsLoading = true;
+// true when listings come from (and are posted to) the shared backend
+let sharedMode = false;
 
+document.addEventListener("DOMContentLoaded", () => {
+  wishlist = getStoredWishlist();
   Cart.init();
-  const removed = Cart.reconcile(products);
-  if (removed > 0) {
-    showToast(`${removed} item${removed === 1 ? " is" : "s are"} no longer available and ${removed === 1 ? "was" : "were"} removed from your cart.`, "info");
-  }
 
   renderCategories();
-  renderProducts();
+  renderProducts(); // shows the loading message until listings arrive
   updateWishlistDot();
   initEventListeners();
 
   const year = document.getElementById("footerYear");
   if (year) year.textContent = new Date().getFullYear();
+
+  loadListings();
 });
+
+/**
+ * Load listings from the shared backend; if it is not available (local preview, database not
+ * configured, offline) fall back to the browser-only catalogue so the site always works.
+ */
+async function loadListings() {
+  try {
+    const listings = await fetchListings();
+    const myIds = getMyListingIds();
+    products = listings
+      .map(sanitizeProduct)
+      .filter(Boolean)
+      .map(p => ({ ...p, mine: myIds.has(p.id) }));
+    sharedMode = true;
+  } catch (e) {
+    products = getStoredProducts();
+    sharedMode = false;
+  }
+
+  listingsLoading = false;
+
+  const removed = Cart.reconcile(products);
+  if (removed > 0) {
+    showToast(`${removed} item${removed === 1 ? " is" : "s are"} no longer available and ${removed === 1 ? "was" : "were"} removed from your cart.`, "info");
+  }
+
+  renderProducts();
+}
 
 // ================= FOCUS HELPERS =================
 function rememberFocus(trigger) {
@@ -244,6 +273,17 @@ function emptyStateHTML() {
 function renderProducts() {
   const container = document.getElementById("productsGridContainer");
   if (!container) return;
+
+  container.setAttribute("aria-busy", listingsLoading ? "true" : "false");
+  if (listingsLoading) {
+    container.innerHTML = `
+      <div class="empty-products" role="status">
+        <div class="empty-icon" aria-hidden="true">⏳</div>
+        <h3 class="empty-title">Loading listings…</h3>
+      </div>
+    `;
+    return;
+  }
 
   const filtered = getVisibleProducts();
   updateHeadings(filtered.length);
@@ -833,8 +873,11 @@ function initEventListeners() {
     clearValidityOnInput(priceInput);
     clearValidityOnInput(phoneInput);
 
-    postForm.addEventListener("submit", (e) => {
+    let posting = false;
+
+    postForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (posting) return; // ignore double clicks while a request is in flight
 
       const title = document.getElementById("postTitle").value.trim();
       const categoryValue = document.getElementById("postCategory").value;
@@ -864,32 +907,82 @@ function initEventListeners() {
         return;
       }
 
-      const newProduct = sanitizeProduct({
-        id: generateId("p"),
-        title,
-        price,
-        category,
-        badge,
-        badgeType: ALLOWED_BADGES[badge],
-        image: CATEGORY_DEFAULT_IMAGES[category] || DEFAULT_PRODUCT_IMAGE,
-        description,
-        longDescription: description,
-        condition,
-        seller: {
-          name: sName,
-          department: sDept,
-          year: "",
-          avatar: DEFAULT_AVATAR,
-          phone: formatKenyanPhone(phone),
-          whatsapp: phone, // always the full 254... number so wa.me links work
-          location: `Chuka University (${sLocation})`
-        },
-        mine: true
-      });
+      let newProduct = null;
 
-      products.unshift(newProduct);
-      if (!saveProducts(products)) {
-        showToast("Your listing is visible now, but this browser could not save it (storage full or blocked).", "info");
+      if (sharedMode) {
+        // ---- Shared backend: the server validates again and stores the listing for everyone ----
+        const submitBtn = postForm.querySelector("button[type='submit']");
+        posting = true;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.setAttribute("aria-busy", "true");
+        }
+
+        const result = await postListing({
+          title,
+          price,
+          category,
+          condition,
+          badge,
+          description,
+          sellerName: sName,
+          sellerDept: sDept,
+          sellerPhone: phoneInput.value,
+          sellerLocation: sLocation
+        });
+
+        posting = false;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.removeAttribute("aria-busy");
+        }
+
+        if (!result.ok) {
+          if (result.error === "validation") {
+            const fieldInputs = { price: priceInput, sellerPhone: phoneInput };
+            const [field, message] = Object.entries(result.fields)[0] || [];
+            if (fieldInputs[field]) failField(fieldInputs[field], message);
+            else showToast(message || "Please check the form and try again.", "info");
+          } else if (result.error === "rate_limited") {
+            showToast(result.message || "You've posted a lot recently. Please try again later.", "info");
+          } else {
+            showToast("Could not post your listing right now. Please check your connection and try again.", "info");
+          }
+          return; // keep the form filled in so nothing is lost
+        }
+
+        newProduct = { ...sanitizeProduct(result.listing), mine: true };
+        rememberMyListingId(newProduct.id);
+        products.unshift(newProduct);
+      } else {
+        // ---- Fallback: browser-only listing (backend not reachable) ----
+        newProduct = sanitizeProduct({
+          id: generateId("p"),
+          title,
+          price,
+          category,
+          badge,
+          badgeType: ALLOWED_BADGES[badge],
+          image: CATEGORY_DEFAULT_IMAGES[category] || DEFAULT_PRODUCT_IMAGE,
+          description,
+          longDescription: description,
+          condition,
+          seller: {
+            name: sName,
+            department: sDept,
+            year: "",
+            avatar: DEFAULT_AVATAR,
+            phone: formatKenyanPhone(phone),
+            whatsapp: phone, // always the full 254... number so wa.me links work
+            location: `Chuka University (${sLocation})`
+          },
+          mine: true
+        });
+
+        products.unshift(newProduct);
+        if (!saveProducts(products)) {
+          showToast("Your listing is visible now, but this browser could not save it (storage full or blocked).", "info");
+        }
       }
 
       postForm.reset();
@@ -897,7 +990,12 @@ function initEventListeners() {
       resetAllFilters(); // make sure the new listing is not hidden by an active filter
       scrollToProducts();
 
-      showToast(`Listing "${newProduct.title}" created successfully!`, "success");
+      showToast(
+        sharedMode
+          ? `Listing "${newProduct.title}" is now live for all students!`
+          : `Listing "${newProduct.title}" saved on this device only (the shared marketplace is not connected yet).`,
+        "success"
+      );
     });
   }
 

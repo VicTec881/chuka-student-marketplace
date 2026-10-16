@@ -1,0 +1,15 @@
+{
+  "name": "chuka-student-marketplace",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Chuka University Student Marketplace: static front end plus Vercel serverless API",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.21.0"
+  }
+}

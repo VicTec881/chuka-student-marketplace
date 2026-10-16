@@ -12,3 +12,9 @@ desktop.ini
 # Environment & Credentials
 .env
 *.token
+
+# Dependencies & local tooling
+node_modules/
+.vercel/
+.env*
+!.env.example
