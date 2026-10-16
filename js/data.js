@@ -365,20 +365,128 @@ const INITIAL_PRODUCTS = [
   }
 ];
 
+// ================= STORAGE (browser only, until a backend exists) =================
+const STORAGE_KEYS = {
+  products: "chuka_marketplace_products",
+  wishlist: "chuka_marketplace_wishlist",
+  reservations: "chuka_marketplace_reservations"
+};
+
+// localStorage can throw (private mode, blocked storage, quota). Never let that break the page.
+function storageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.error("Could not save to localStorage", e);
+    return false;
+  }
+}
+
+function storageGetJSON(key) {
+  const raw = storageGet(key);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error(`Failed to parse stored data for ${key}`, e);
+    return null;
+  }
+}
+
+/**
+ * Validate and repair one stored product. Returns null if it is unusable.
+ * - ensures the fields the UI relies on exist and have the right types
+ * - re-derives the WhatsApp number from the phone number (fixes old "0712..." links)
+ * - only keeps images that ship with the site
+ */
+function sanitizeProduct(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = typeof raw.id === "string" ? raw.id : "";
+  const title = typeof raw.title === "string" ? raw.title.trim() : "";
+  const price = Number(raw.price);
+  if (!id || !title || !Number.isFinite(price) || price < 0) return null;
+
+  const seller = raw.seller && typeof raw.seller === "object" ? raw.seller : {};
+  const phoneSource = seller.phone || seller.whatsapp || "";
+  const whatsapp = normalizeKenyanPhone(phoneSource) || "";
+
+  return {
+    ...raw,
+    id,
+    title,
+    price,
+    formattedPrice: `KSh ${price.toLocaleString()}`,
+    category: typeof raw.category === "string" ? raw.category : "other",
+    badge: typeof raw.badge === "string" && raw.badge ? raw.badge : "New",
+    badgeType: typeof raw.badgeType === "string" && raw.badgeType ? raw.badgeType : "new",
+    image: safeImagePath(raw.image),
+    description: typeof raw.description === "string" ? raw.description : "",
+    longDescription: typeof raw.longDescription === "string" ? raw.longDescription : "",
+    condition: typeof raw.condition === "string" ? raw.condition : "",
+    // Listings created in this browser (ids start with "p_") belong to "My Listings".
+    mine: raw.mine === true || id.startsWith("p_"),
+    seller: {
+      ...seller,
+      name: typeof seller.name === "string" ? seller.name : "Student",
+      department: typeof seller.department === "string" ? seller.department : "",
+      year: typeof seller.year === "string" ? seller.year : "",
+      phone: whatsapp ? formatKenyanPhone(whatsapp) : String(phoneSource || ""),
+      whatsapp,
+      location: typeof seller.location === "string" ? seller.location : "Chuka University",
+      avatar: id.startsWith("p_") ? DEFAULT_AVATAR : safeImagePath(seller.avatar, DEFAULT_AVATAR)
+    }
+  };
+}
+
 // Helper to get products from LocalStorage or initialize with defaults
 function getStoredProducts() {
-  const stored = localStorage.getItem("chuka_marketplace_products");
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch (e) {
-      console.error("Failed to parse stored products", e);
+  const stored = storageGetJSON(STORAGE_KEYS.products);
+
+  if (Array.isArray(stored)) {
+    const cleaned = stored.map(sanitizeProduct).filter(Boolean);
+    if (cleaned.length > 0) {
+      saveProducts(cleaned); // persist repaired data (e.g. fixed WhatsApp numbers)
+      return cleaned;
     }
   }
-  localStorage.setItem("chuka_marketplace_products", JSON.stringify(INITIAL_PRODUCTS));
-  return INITIAL_PRODUCTS;
+
+  // Nothing stored, unreadable, or nothing usable: start from the sample catalogue.
+  const defaults = INITIAL_PRODUCTS.map(sanitizeProduct).filter(Boolean);
+  saveProducts(defaults);
+  return defaults;
 }
 
 function saveProducts(products) {
-  localStorage.setItem("chuka_marketplace_products", JSON.stringify(products));
+  return storageSet(STORAGE_KEYS.products, JSON.stringify(products));
+}
+
+// ================= WISHLIST =================
+function getStoredWishlist() {
+  const stored = storageGetJSON(STORAGE_KEYS.wishlist);
+  return new Set(Array.isArray(stored) ? stored.filter(id => typeof id === "string") : []);
+}
+
+function saveWishlist(wishlistSet) {
+  return storageSet(STORAGE_KEYS.wishlist, JSON.stringify([...wishlistSet]));
+}
+
+// ================= RESERVATIONS =================
+function getStoredReservations() {
+  const stored = storageGetJSON(STORAGE_KEYS.reservations);
+  return Array.isArray(stored) ? stored : [];
+}
+
+function saveReservation(reservation) {
+  const all = getStoredReservations();
+  all.unshift(reservation);
+  return storageSet(STORAGE_KEYS.reservations, JSON.stringify(all));
 }

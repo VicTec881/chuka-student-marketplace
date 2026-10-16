@@ -1,60 +1,172 @@
 // Chuka University Student Marketplace - Main Application Logic
+// Depends on: utils.js (escapeHtml, phone helpers), data.js (storage + catalogue), cart.js (Cart)
 
 let products = [];
 let activeCategory = "all";
+// "all" | "popular" | "best-deal" | "under1000" | <category id> | "saved" | "mine"
 let activeFilter = "all";
 let currentSearchTerm = "";
 let wishlist = new Set();
+let lastFocusedElement = null;
+
+const ALLOWED_BADGES = {
+  "Popular": "popular",
+  "New": "new",
+  "Best Deal": "best-deal",
+  "Fresh": "fresh"
+};
+
+const CATEGORY_DEFAULT_IMAGES = {
+  electronics: "assets/images/dell_laptop.jpg",
+  fashion: "assets/images/handbag.jpg",
+  phones: "assets/images/samsung_phone.jpg",
+  food: "assets/images/cooked_meal.jpg",
+  home: "assets/images/kettle.jpg",
+  sports: "assets/images/basketball.jpg"
+};
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Load products
   products = getStoredProducts();
+  wishlist = getStoredWishlist();
 
-  // Initialize Cart
   Cart.init();
+  const removed = Cart.reconcile(products);
+  if (removed > 0) {
+    showToast(`${removed} item${removed === 1 ? " is" : "s are"} no longer available and ${removed === 1 ? "was" : "were"} removed from your cart.`, "info");
+  }
 
-  // Render UI
   renderCategories();
   renderProducts();
-
-  // Bind Events
+  updateWishlistDot();
   initEventListeners();
+
+  const year = document.getElementById("footerYear");
+  if (year) year.textContent = new Date().getFullYear();
 });
+
+// ================= FOCUS HELPERS =================
+function rememberFocus(trigger) {
+  lastFocusedElement = trigger || document.activeElement;
+}
+
+function restoreFocus() {
+  const el = lastFocusedElement;
+  lastFocusedElement = null;
+  if (el && document.contains(el) && typeof el.focus === "function") el.focus();
+}
+
+function focusFirstIn(container) {
+  if (!container) return;
+  const first = container.querySelector(FOCUSABLE_SELECTOR);
+  if (first) first.focus();
+}
 
 // ================= RENDER CATEGORIES =================
 function renderCategories() {
   const container = document.getElementById("categoryGridContainer");
   if (!container) return;
 
+  // Re-rendering replaces the focused card; remember it so keyboard users keep their place.
+  const focusedCard = document.activeElement && container.contains(document.activeElement)
+    ? document.activeElement.closest("[data-category]")
+    : null;
+  const focusedId = focusedCard ? focusedCard.dataset.category : null;
+
   container.innerHTML = INITIAL_CATEGORIES.map(cat => `
-    <div 
-      class="category-card ${activeCategory === cat.id ? 'active' : ''}" 
-      data-category="${cat.id}"
+    <div
+      class="category-card ${activeCategory === cat.id ? 'active' : ''}"
+      data-category="${escapeHtml(cat.id)}"
       style="background-color: ${cat.bgColor}; border-color: ${cat.borderColor};"
-      onclick="filterByCategory('${cat.id}')"
       role="button"
       tabindex="0"
+      aria-pressed="${activeCategory === cat.id}"
     >
-      <div class="category-icon-box" style="color: ${cat.textColor};">
+      <div class="category-icon-box" style="color: ${cat.textColor};" aria-hidden="true">
         ${cat.icon}
       </div>
-      <span class="category-name" style="color: ${cat.textColor};">${cat.name}</span>
+      <span class="category-name" style="color: ${cat.textColor};">${escapeHtml(cat.name)}</span>
     </div>
   `).join("");
+
+  if (focusedId) {
+    const next = Array.from(container.querySelectorAll("[data-category]"))
+      .find(el => el.dataset.category === focusedId);
+    if (next) next.focus({ preventScroll: true });
+  }
 }
 
-// ================= RENDER PRODUCTS =================
-function renderProducts() {
-  const container = document.getElementById("productsGridContainer");
-  if (!container) return;
+// ================= PRODUCT CARD (single template) =================
+const HEART_PATH = "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z";
 
-  // Filter products based on search, activeCategory, and filter chips
+function productCardHTML(product) {
+  const id = escapeHtml(product.id);
+  const title = escapeHtml(product.title);
+  const isWishlisted = wishlist.has(product.id);
+  const badgeClass = `badge-${escapeHtml(product.badgeType || "popular")}`;
+  const sellerName = escapeHtml(product.seller.name);
+
+  return `
+    <article class="product-card" data-id="${id}">
+      <div class="product-img-box">
+        <span class="product-badge ${badgeClass}">${escapeHtml(product.badge)}</span>
+        <button
+          type="button"
+          class="wishlist-btn ${isWishlisted ? 'active' : ''}"
+          data-action="wishlist"
+          data-id="${id}"
+          aria-pressed="${isWishlisted}"
+          aria-label="${isWishlisted ? 'Remove' : 'Save'} ${title} ${isWishlisted ? 'from' : 'to'} wishlist"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="${isWishlisted ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="${HEART_PATH}"/>
+          </svg>
+        </button>
+        <img src="${escapeHtml(safeImagePath(product.image))}" alt="${title}" class="product-img" loading="lazy">
+      </div>
+
+      <div class="product-body">
+        <h3 class="product-title" title="${title}">${title}</h3>
+        <div class="product-price">${escapeHtml(product.formattedPrice || `KSh ${product.price.toLocaleString()}`)}</div>
+        <p class="product-desc">${escapeHtml(product.description)}</p>
+
+        <div class="seller-row">
+          <img src="${escapeHtml(safeImagePath(product.seller.avatar, DEFAULT_AVATAR))}" alt="" class="seller-avatar">
+          <div class="seller-details">
+            <span class="seller-name">${sellerName}</span>
+            <span class="seller-dept">${escapeHtml(product.seller.department)}</span>
+          </div>
+        </div>
+
+        <div class="location-row">
+          <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>Chuka University</span>
+        </div>
+
+        <button type="button" class="btn-view-details" data-action="details" data-id="${id}">
+          <span>View Details</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+
+        <button type="button" class="quick-add-btn" data-action="quick-add" data-id="${id}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Quick Add</span>
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+// ================= FILTERING =================
+function getVisibleProducts() {
   let filtered = [...products];
 
   // Search filter
   if (currentSearchTerm.trim() !== "") {
-    const q = currentSearchTerm.toLowerCase();
-    filtered = filtered.filter(p => 
+    const q = currentSearchTerm.trim().toLowerCase();
+    filtered = filtered.filter(p =>
       p.title.toLowerCase().includes(q) ||
       p.description.toLowerCase().includes(q) ||
       p.seller.name.toLowerCase().includes(q) ||
@@ -62,120 +174,108 @@ function renderProducts() {
     );
   }
 
-  // Category filter
+  // Category cards
   if (activeCategory !== "all") {
     filtered = filtered.filter(p => p.category === activeCategory);
   }
 
-  // Quick filter chips
+  // Chips / special views
   if (activeFilter === "popular") {
     filtered = filtered.filter(p => p.badgeType === "popular");
   } else if (activeFilter === "best-deal") {
     filtered = filtered.filter(p => p.badgeType === "best-deal");
   } else if (activeFilter === "under1000") {
     filtered = filtered.filter(p => p.price < 1000);
-  } else if (["electronics", "books", "fashion", "phones", "food"].includes(activeFilter)) {
+  } else if (activeFilter === "saved") {
+    filtered = filtered.filter(p => wishlist.has(p.id));
+  } else if (activeFilter === "mine") {
+    filtered = filtered.filter(p => p.mine === true);
+  } else if (INITIAL_CATEGORIES.some(c => c.id === activeFilter)) {
     filtered = filtered.filter(p => p.category === activeFilter);
   }
 
-  // Update Section Heading
+  return filtered;
+}
+
+function updateHeadings(count) {
   const heading = document.getElementById("productsHeading");
   const subheading = document.getElementById("productsSubheading");
-  if (heading && subheading) {
-    if (activeCategory !== "all") {
-      const catObj = INITIAL_CATEGORIES.find(c => c.id === activeCategory);
-      heading.textContent = catObj ? `${catObj.name}` : "Products";
-      subheading.textContent = `Showing all verified items in ${catObj ? catObj.name : "category"}.`;
-    } else if (currentSearchTerm) {
-      heading.textContent = `Search Results for "${currentSearchTerm}"`;
-      subheading.textContent = `Found ${filtered.length} matching product${filtered.length === 1 ? '' : 's'}.`;
-    } else {
-      heading.textContent = "Featured Products";
-      subheading.textContent = "Showing all verified listings from fellow students on campus.";
-    }
+  if (!heading || !subheading) return;
+
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+  if (activeFilter === "saved") {
+    heading.textContent = "Saved Items";
+    subheading.textContent = `Showing ${plural(count, "saved item")}.`;
+  } else if (activeFilter === "mine") {
+    heading.textContent = "My Listings";
+    subheading.textContent = `Showing ${plural(count, "listing")} posted from this browser.`;
+  } else if (activeCategory !== "all") {
+    const catObj = INITIAL_CATEGORIES.find(c => c.id === activeCategory);
+    heading.textContent = catObj ? catObj.name : "Products";
+    subheading.textContent = `Showing all listings in ${catObj ? catObj.name : "this category"}.`;
+  } else if (currentSearchTerm.trim()) {
+    heading.textContent = `Search Results for "${currentSearchTerm.trim()}"`;
+    subheading.textContent = `Found ${plural(count, "matching product")}.`;
+  } else {
+    heading.textContent = "Featured Products";
+    subheading.textContent = "Showing all listings from fellow students on campus.";
   }
+}
 
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div class="empty-products">
-        <div class="empty-icon">🔍</div>
-        <h3 class="empty-title">No products found</h3>
-        <p style="color: #64748b; margin-bottom: 16px;">Try adjusting your search terms or browse all student categories.</p>
-        <button class="btn-primary" onclick="resetAllFilters()">Reset All Filters</button>
-      </div>
-    `;
-    return;
+function emptyStateHTML() {
+  let message = "Try adjusting your search terms or browse all student categories.";
+  if (activeFilter === "saved") {
+    message = "You haven't saved any items yet. Tap the heart on any product to save it.";
+  } else if (activeFilter === "mine") {
+    message = "You haven't posted any listings from this browser yet.";
   }
+  return `
+    <div class="empty-products">
+      <div class="empty-icon" aria-hidden="true">🔍</div>
+      <h3 class="empty-title">No products found</h3>
+      <p style="color: #64748b; margin-bottom: 16px;">${message}</p>
+      <button type="button" class="btn-primary" data-action="reset-filters">Reset All Filters</button>
+    </div>
+  `;
+}
 
-  container.innerHTML = filtered.map(product => {
-    const isWishlisted = wishlist.has(product.id);
-    const badgeClass = `badge-${product.badgeType || 'popular'}`;
+// ================= RENDER PRODUCTS =================
+function renderProducts() {
+  const container = document.getElementById("productsGridContainer");
+  if (!container) return;
 
-    return `
-      <article class="product-card" data-id="${product.id}">
-        <div class="product-img-box">
-          <span class="product-badge ${badgeClass}">${product.badge}</span>
-          <button 
-            type="button" 
-            class="wishlist-btn ${isWishlisted ? 'active' : ''}" 
-            onclick="toggleWishlist('${product.id}', event)" 
-            aria-label="Save to wishlist"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="${isWishlisted ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
-              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-            </svg>
-          </button>
-          <img src="${product.image}" alt="${product.title}" class="product-img" loading="lazy">
-        </div>
+  const filtered = getVisibleProducts();
+  updateHeadings(filtered.length);
 
-        <div class="product-body">
-          <h3 class="product-title" title="${product.title}">${product.title}</h3>
-          <div class="product-price">${product.formattedPrice || `KSh ${product.price.toLocaleString()}`}</div>
-          <p class="product-desc">${product.description}</p>
+  container.innerHTML = filtered.length === 0
+    ? emptyStateHTML()
+    : filtered.map(productCardHTML).join("");
+}
 
-          <div class="seller-row">
-            <img src="${product.seller.avatar || 'assets/images/avatar_brian.jpg'}" alt="${product.seller.name}" class="seller-avatar">
-            <div class="seller-details">
-              <span class="seller-name">${product.seller.name}</span>
-              <span class="seller-dept">${product.seller.department}</span>
-            </div>
-          </div>
+function setActiveChip(filter) {
+  document.querySelectorAll(".filter-chip").forEach(chip => {
+    chip.classList.toggle("active", chip.dataset.filter === filter);
+  });
+}
 
-          <div class="location-row">
-            <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-            <span>Chuka University</span>
-          </div>
+function setMobileBarActive(id) {
+  document.querySelectorAll(".mobile-bar-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.id === id);
+  });
+}
 
-          <button type="button" class="btn-view-details" onclick="openProductModal('${product.id}')">
-            <span>View Details</span>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-
-          <button type="button" class="quick-add-btn" onclick="quickAddToCart('${product.id}')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>Quick Add</span>
-          </button>
-        </div>
-      </article>
-    `;
-  }).join("");
+function scrollToProducts() {
+  const section = document.getElementById("featuredSection");
+  if (section) section.scrollIntoView({ behavior: scrollBehavior() });
 }
 
 // ================= FILTER HANDLERS =================
 function filterByCategory(categoryId) {
-  if (activeCategory === categoryId) {
-    activeCategory = "all";
-  } else {
-    activeCategory = categoryId;
-  }
+  activeCategory = activeCategory === categoryId ? "all" : categoryId;
   renderCategories();
   renderProducts();
-
-  // Scroll smoothly to products
-  const section = document.getElementById("featuredSection");
-  if (section) {
-    section.scrollIntoView({ behavior: "smooth" });
-  }
+  scrollToProducts();
 }
 
 function resetAllFilters() {
@@ -187,25 +287,39 @@ function resetAllFilters() {
   const clearBtn = document.getElementById("searchClearBtn");
   if (clearBtn) clearBtn.style.display = "none";
 
-  // Reset chips
-  document.querySelectorAll(".filter-chip").forEach(chip => {
-    chip.classList.toggle("active", chip.dataset.filter === "all");
-  });
-
+  setActiveChip("all");
   renderCategories();
   renderProducts();
+}
+
+// Switch to a special view ("saved" / "mine") that has no chip of its own.
+function showFilterView(filter) {
+  activeFilter = filter;
+  activeCategory = "all";
+  currentSearchTerm = "";
+  const searchInput = document.getElementById("globalSearchInput");
+  if (searchInput) searchInput.value = "";
+  const clearBtn = document.getElementById("searchClearBtn");
+  if (clearBtn) clearBtn.style.display = "none";
+
+  setActiveChip(filter); // no chip matches, so "All Items" is deselected
+  renderCategories();
+  renderProducts();
+  scrollToProducts();
 }
 
 // ================= QUICK ADD & WISHLIST =================
 function quickAddToCart(productId) {
   const prod = products.find(p => p.id === productId);
-  if (prod) {
-    Cart.addItem(prod, 1);
-  }
+  if (prod) Cart.addItem(prod, 1);
 }
 
-function toggleWishlist(productId, event) {
-  if (event) event.stopPropagation();
+function updateWishlistDot() {
+  const dot = document.getElementById("wishlistDot");
+  if (dot) dot.classList.toggle("active", wishlist.size > 0);
+}
+
+function toggleWishlist(productId) {
   if (wishlist.has(productId)) {
     wishlist.delete(productId);
     showToast("Removed from saved items", "info");
@@ -213,13 +327,8 @@ function toggleWishlist(productId, event) {
     wishlist.add(productId);
     showToast("Saved to your wishlist!", "success");
   }
-
-  // Update wishlist indicator on mobile bar
-  const dot = document.getElementById("wishlistDot");
-  if (dot) {
-    dot.classList.toggle("active", wishlist.size > 0);
-  }
-
+  saveWishlist(wishlist);
+  updateWishlistDot();
   renderProducts();
 }
 
@@ -228,119 +337,92 @@ function filterWishlistItems() {
     showToast("You haven't saved any items yet! Tap the heart icon on any product.", "info");
     return;
   }
-  
-  activeFilter = "saved";
-  activeCategory = "all";
-  currentSearchTerm = "";
+  showFilterView("saved");
+  setMobileBarActive("barSavedBtn");
+}
 
-  document.querySelectorAll(".mobile-bar-btn").forEach(btn => btn.classList.remove("active"));
-  const savedBarBtn = document.getElementById("barSavedBtn");
-  if (savedBarBtn) savedBarBtn.classList.add("active");
-
-  const container = document.getElementById("productsGridContainer");
-  const heading = document.getElementById("productsHeading");
-  const subheading = document.getElementById("productsSubheading");
-  if (heading) heading.textContent = "Saved / Wishlist Items";
-  if (subheading) subheading.textContent = `Showing ${wishlist.size} saved campus item${wishlist.size === 1 ? '' : 's'}.`;
-
-  const savedProducts = products.filter(p => wishlist.has(p.id));
-  if (container) {
-    container.innerHTML = savedProducts.map(product => {
-      const badgeClass = `badge-${product.badgeType || 'popular'}`;
-      return `
-        <article class="product-card" data-id="${product.id}">
-          <div class="product-img-box">
-            <span class="product-badge ${badgeClass}">${product.badge}</span>
-            <button 
-              type="button" 
-              class="wishlist-btn active" 
-              onclick="toggleWishlist('${product.id}', event)" 
-              aria-label="Remove from wishlist"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2">
-                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-              </svg>
-            </button>
-            <img src="${product.image}" alt="${product.title}" class="product-img" loading="lazy">
-          </div>
-          <div class="product-body">
-            <h3 class="product-title" title="${product.title}">${product.title}</h3>
-            <div class="product-price">${product.formattedPrice || `KSh ${product.price.toLocaleString()}`}</div>
-            <div class="seller-row">
-              <img src="${product.seller.avatar || 'assets/images/avatar_brian.jpg'}" alt="${product.seller.name}" class="seller-avatar">
-              <div class="seller-details">
-                <span class="seller-name">${product.seller.name}</span>
-                <span class="seller-dept">${product.seller.department}</span>
-              </div>
-            </div>
-            <div class="location-row">
-              <svg class="location-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-              <span>Chuka University</span>
-            </div>
-            <button type="button" class="btn-view-details" onclick="openProductModal('${product.id}')">
-              <span>View Details</span>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-        </article>
-      `;
-    }).join("");
+function filterMyListings() {
+  if (!products.some(p => p.mine === true)) {
+    showToast("You haven't posted any listings from this browser yet.", "info");
+    return;
   }
-
-  const section = document.getElementById("featuredSection");
-  if (section) section.scrollIntoView({ behavior: "smooth" });
+  showFilterView("mine");
 }
 
 // ================= PRODUCT DETAILS MODAL =================
-function openProductModal(productId) {
+function openProductModal(productId, trigger) {
   const product = products.find(p => p.id === productId);
   if (!product) return;
 
   const modalBody = document.getElementById("productModalBody");
   const modalOverlay = document.getElementById("productModalOverlay");
+  if (!modalBody || !modalOverlay) return;
 
+  rememberFocus(trigger);
+
+  const id = escapeHtml(product.id);
+  const title = escapeHtml(product.title);
+  const price = product.formattedPrice || `KSh ${product.price.toLocaleString()}`;
+
+  // Always derive the wa.me number from the stored phone, so it has the 254 country code.
+  const waNumber = normalizeKenyanPhone(product.seller.whatsapp || product.seller.phone);
   const whatsappMessage = encodeURIComponent(
-    `Hello ${product.seller.name}, I am a student at Chuka University interested in your "${product.title}" listed for ${product.formattedPrice || 'KSh ' + product.price.toLocaleString()} on the Chuka Student Marketplace. Is it still available for campus meetup?`
+    `Hello ${product.seller.name}, I am a student at Chuka University interested in your "${product.title}" listed for ${price} on the Chuka Student Marketplace. Is it still available for campus meetup?`
   );
+  const phoneLabel = waNumber ? formatKenyanPhone(waNumber) : "";
+
+  const whatsappButton = waNumber
+    ? `<a
+          href="https://wa.me/${waNumber}?text=${whatsappMessage}"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="btn-whatsapp"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+          <span>Chat on WhatsApp (${escapeHtml(phoneLabel)})</span>
+        </a>`
+    : `<span class="btn-whatsapp" aria-disabled="true" style="opacity: 0.55; pointer-events: none; cursor: not-allowed;">
+          <span>No valid WhatsApp number on this listing</span>
+        </span>`;
 
   modalBody.innerHTML = `
     <div class="product-modal-gallery">
-      <img src="${product.image}" alt="${product.title}" class="product-modal-main-img">
-      <div style="display: flex; gap: 8px; justify-content: center;">
-        <span style="font-size: 11.5px; color: #16a34a; background: #dcfce7; padding: 4px 10px; border-radius: 9999px; font-weight: 600;">
-          ✓ Campus Verified Seller
+      <img src="${escapeHtml(safeImagePath(product.image))}" alt="${title}" class="product-modal-main-img">
+      <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+        <span style="font-size: 11.5px; color: #475569; background: #f1f5f9; padding: 4px 10px; border-radius: 9999px; font-weight: 600;">
+          Seller not yet verified
         </span>
         <span style="font-size: 11.5px; color: #0284c7; background: #e0f2fe; padding: 4px 10px; border-radius: 9999px; font-weight: 600;">
-          Condition: ${product.condition || 'Good'}
+          Condition: ${escapeHtml(product.condition || "Good")}
         </span>
       </div>
     </div>
 
     <div>
       <div class="modal-badge-row">
-        <span class="product-badge badge-${product.badgeType || 'popular'}" style="position: static;">
-          ${product.badge}
+        <span class="product-badge badge-${escapeHtml(product.badgeType || "popular")}" style="position: static;">
+          ${escapeHtml(product.badge)}
         </span>
-        <span style="font-size: 12px; color: #64748b;">Posted by fellow student</span>
+        <span style="font-size: 12px; color: #64748b;">Posted by a fellow student</span>
       </div>
 
-      <h2 class="modal-product-title" id="modalProductTitle">${product.title}</h2>
-      <div class="modal-product-price">${product.formattedPrice || `KSh ${product.price.toLocaleString()}`}</div>
+      <h2 class="modal-product-title" id="modalProductTitle">${title}</h2>
+      <div class="modal-product-price">${escapeHtml(price)}</div>
 
       <p class="modal-product-desc">
-        ${product.longDescription || product.description}
+        ${escapeHtml(product.longDescription || product.description)}
       </p>
 
       <!-- Seller Profile Card -->
       <div class="modal-seller-card">
         <div class="modal-seller-header">
-          <img src="${product.seller.avatar || 'assets/images/avatar_brian.jpg'}" alt="${product.seller.name}" class="modal-seller-avatar">
+          <img src="${escapeHtml(safeImagePath(product.seller.avatar, DEFAULT_AVATAR))}" alt="" class="modal-seller-avatar">
           <div style="flex: 1;">
-            <div class="modal-seller-name">${product.seller.name}</div>
-            <div class="modal-seller-meta">${product.seller.department} • ${product.seller.year || 'Student'}</div>
+            <div class="modal-seller-name">${escapeHtml(product.seller.name)}</div>
+            <div class="modal-seller-meta">${escapeHtml(product.seller.department)} • ${escapeHtml(product.seller.year || "Student")}</div>
             <div style="font-size: 12px; color: #0f172a; margin-top: 4px; display: flex; align-items: center; gap: 4px;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-              <span>Meetup: ${product.seller.location}</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span>Meetup: ${escapeHtml(product.seller.location)}</span>
             </div>
           </div>
         </div>
@@ -348,18 +430,10 @@ function openProductModal(productId) {
 
       <!-- Action Buttons -->
       <div class="modal-actions-row">
-        <a 
-          href="https://wa.me/${product.seller.whatsapp}?text=${whatsappMessage}" 
-          target="_blank" 
-          rel="noopener" 
-          class="btn-whatsapp"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
-          <span>Chat on WhatsApp (${product.seller.phone})</span>
-        </a>
+        ${whatsappButton}
 
-        <button type="button" class="btn-add-cart-large" onclick="Cart.addItem(products.find(p => p.id === '${product.id}')); closeProductModal();">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+        <button type="button" class="btn-add-cart-large" data-action="modal-add-cart" data-id="${id}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
           <span>Add to Campus Cart</span>
         </button>
       </div>
@@ -373,20 +447,25 @@ function openProductModal(productId) {
 
   modalOverlay.classList.add("open");
   document.body.style.overflow = "hidden";
+  focusFirstIn(modalOverlay);
 }
 
 function closeProductModal() {
   const modalOverlay = document.getElementById("productModalOverlay");
   if (modalOverlay) modalOverlay.classList.remove("open");
   document.body.style.overflow = "";
+  restoreFocus();
 }
 
 // ================= POST AN ITEM MODAL =================
-function openPostModal() {
+function openPostModal(trigger) {
   const modal = document.getElementById("postModalOverlay");
   if (modal) {
+    rememberFocus(trigger instanceof Element ? trigger : null);
     modal.classList.add("open");
     document.body.style.overflow = "hidden";
+    const first = document.getElementById("postTitle");
+    if (first) first.focus();
   }
 }
 
@@ -395,7 +474,26 @@ function closePostModal() {
   if (modal) {
     modal.classList.remove("open");
     document.body.style.overflow = "";
+    restoreFocus();
   }
+}
+
+// ================= CHECKOUT (RESERVATION) MODAL =================
+function openCheckoutModal() {
+  const modal = document.getElementById("checkoutModalOverlay");
+  if (!modal) return;
+  rememberFocus();
+  modal.classList.add("open");
+  document.body.style.overflow = "hidden";
+  const first = document.getElementById("buyerName");
+  if (first) first.focus();
+}
+
+function closeCheckoutModal() {
+  const modal = document.getElementById("checkoutModalOverlay");
+  if (modal) modal.classList.remove("open");
+  document.body.style.overflow = "";
+  restoreFocus();
 }
 
 // ================= CART DRAWER TOGGLE =================
@@ -403,10 +501,13 @@ function openCartDrawer() {
   const drawer = document.getElementById("cartDrawer");
   const overlay = document.getElementById("cartOverlay");
   if (drawer && overlay) {
+    rememberFocus();
     drawer.classList.add("open");
     overlay.classList.add("open");
     document.body.style.overflow = "hidden";
     Cart.updateUI();
+    const closeBtn = document.getElementById("closeCartBtn");
+    if (closeBtn) closeBtn.focus();
   }
 }
 
@@ -417,18 +518,25 @@ function closeCartDrawer() {
     drawer.classList.remove("open");
     overlay.classList.remove("open");
     document.body.style.overflow = "";
+    restoreFocus();
   }
 }
 
 // ================= ACCOUNT DROPDOWN =================
+function setAccountMenuOpen(open) {
+  const menu = document.getElementById("accountDropdown");
+  const btn = document.getElementById("accountMenuBtn");
+  if (menu) menu.classList.toggle("show", open);
+  if (btn) btn.setAttribute("aria-expanded", String(open));
+}
+
 function toggleAccountMenu() {
   const menu = document.getElementById("accountDropdown");
-  if (menu) menu.classList.toggle("show");
+  setAccountMenuOpen(!(menu && menu.classList.contains("show")));
 }
 
 function closeAccountMenu() {
-  const menu = document.getElementById("accountDropdown");
-  if (menu) menu.classList.remove("show");
+  setAccountMenuOpen(false);
 }
 
 // ================= MOBILE DRAWER =================
@@ -436,9 +544,12 @@ function openMobileDrawer() {
   const drawer = document.getElementById("mobileDrawer");
   const overlay = document.getElementById("mobileDrawerOverlay");
   if (drawer && overlay) {
+    rememberFocus();
     drawer.classList.add("open");
     overlay.classList.add("open");
     document.body.style.overflow = "hidden";
+    const closeBtn = document.getElementById("closeMobileDrawerBtn");
+    if (closeBtn) closeBtn.focus();
   }
 }
 
@@ -449,6 +560,7 @@ function closeMobileDrawer() {
     drawer.classList.remove("open");
     overlay.classList.remove("open");
     document.body.style.overflow = "";
+    restoreFocus();
   }
 }
 
@@ -459,9 +571,9 @@ function showToast(message, type = "info") {
 
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
-  toast.innerHTML = `
-    <span>${message}</span>
-  `;
+  const text = document.createElement("span");
+  text.textContent = message; // textContent: never interpret user-provided text as HTML
+  toast.appendChild(text);
 
   container.appendChild(toast);
 
@@ -471,6 +583,67 @@ function showToast(message, type = "info") {
     toast.style.transition = "all 0.25s ease";
     setTimeout(() => toast.remove(), 250);
   }, 3200);
+}
+
+// ================= ESCAPE KEY + FOCUS TRAP =================
+// Top-most first. Each entry: how to tell it is open, how to close it, which element holds the focusable controls.
+function getOpenOverlays() {
+  const isOpen = (id) => {
+    const el = document.getElementById(id);
+    return el && el.classList.contains("open") ? el : null;
+  };
+  return [
+    { el: isOpen("checkoutModalOverlay"), close: closeCheckoutModal },
+    { el: isOpen("postModalOverlay"), close: closePostModal },
+    { el: isOpen("productModalOverlay"), close: closeProductModal },
+    { el: isOpen("cartDrawer"), close: closeCartDrawer },
+    { el: isOpen("mobileDrawer"), close: closeMobileDrawer }
+  ].filter(entry => entry.el);
+}
+
+function handleGlobalKeydown(e) {
+  if (e.key === "Escape") {
+    const open = getOpenOverlays();
+    if (open.length > 0) {
+      e.preventDefault();
+      open[0].close();
+      return;
+    }
+    const menu = document.getElementById("accountDropdown");
+    if (menu && menu.classList.contains("show")) {
+      closeAccountMenu();
+      const btn = document.getElementById("accountMenuBtn");
+      if (btn) btn.focus();
+    }
+    return;
+  }
+
+  if (e.key === "Tab") {
+    const open = getOpenOverlays();
+    if (open.length === 0) return;
+    const container = open[0].el;
+    const focusables = [...container.querySelectorAll(FOCUSABLE_SELECTOR)];
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !container.contains(document.activeElement))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+}
+
+// ================= FORM HELPERS =================
+function clearValidityOnInput(input) {
+  if (input) input.addEventListener("input", () => input.setCustomValidity(""));
+}
+
+function failField(input, message) {
+  input.setCustomValidity(message);
+  input.reportValidity();
 }
 
 // ================= EVENT LISTENERS =================
@@ -489,11 +662,13 @@ function initEventListeners() {
 
   if (clearBtn) {
     clearBtn.addEventListener("click", () => {
-      if (searchInput) searchInput.value = "";
+      if (searchInput) {
+        searchInput.value = "";
+        searchInput.focus();
+      }
       currentSearchTerm = "";
       clearBtn.style.display = "none";
       renderProducts();
-      searchInput.focus();
     });
   }
 
@@ -501,14 +676,57 @@ function initEventListeners() {
   const filterChips = document.querySelectorAll(".filter-chip");
   filterChips.forEach(chip => {
     chip.addEventListener("click", () => {
-      filterChips.forEach(c => c.classList.remove("active"));
-      chip.classList.add("active");
       activeFilter = chip.dataset.filter;
+      setActiveChip(activeFilter);
       renderProducts();
     });
   });
 
-  // Modal close buttons
+  // Product grid: one delegated listener (no inline handlers, no ids interpolated into JS)
+  const grid = document.getElementById("productsGridContainer");
+  if (grid) {
+    grid.addEventListener("click", (e) => {
+      const el = e.target.closest("[data-action]");
+      if (!el) return;
+      const id = el.dataset.id;
+      switch (el.dataset.action) {
+        case "wishlist": toggleWishlist(id); break;
+        case "details": openProductModal(id, el); break;
+        case "quick-add": quickAddToCart(id); break;
+        case "reset-filters": resetAllFilters(); break;
+      }
+    });
+  }
+
+  // Category cards: click + keyboard (Enter / Space)
+  const categoryGrid = document.getElementById("categoryGridContainer");
+  if (categoryGrid) {
+    categoryGrid.addEventListener("click", (e) => {
+      const card = e.target.closest("[data-category]");
+      if (card) filterByCategory(card.dataset.category);
+    });
+    categoryGrid.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const card = e.target.closest("[data-category]");
+      if (!card) return;
+      e.preventDefault();
+      filterByCategory(card.dataset.category);
+    });
+  }
+
+  // Product modal actions
+  const modalBody = document.getElementById("productModalBody");
+  if (modalBody) {
+    modalBody.addEventListener("click", (e) => {
+      const btn = e.target.closest('[data-action="modal-add-cart"]');
+      if (!btn) return;
+      const prod = products.find(p => p.id === btn.dataset.id);
+      if (prod) Cart.addItem(prod, 1);
+      closeProductModal();
+    });
+  }
+
+  // Modal close buttons + click outside
   const closeProductBtn = document.getElementById("closeProductModalBtn");
   if (closeProductBtn) closeProductBtn.addEventListener("click", closeProductModal);
 
@@ -552,28 +770,25 @@ function initEventListeners() {
   // Mobile Bottom Bar active state sync
   const barHomeBtn = document.getElementById("barHomeBtn");
   if (barHomeBtn) {
-    barHomeBtn.addEventListener("click", () => {
-      document.querySelectorAll(".mobile-bar-btn").forEach(b => b.classList.remove("active"));
-      barHomeBtn.classList.add("active");
+    barHomeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      setMobileBarActive("barHomeBtn");
       resetAllFilters();
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: scrollBehavior() });
     });
   }
 
   const barCatBtn = document.getElementById("barCatBtn");
   if (barCatBtn) {
-    barCatBtn.addEventListener("click", () => {
-      document.querySelectorAll(".mobile-bar-btn").forEach(b => b.classList.remove("active"));
-      barCatBtn.classList.add("active");
-    });
+    barCatBtn.addEventListener("click", () => setMobileBarActive("barCatBtn"));
   }
 
   // Sell buttons
   const navSellBtn = document.getElementById("navSellBtn");
-  if (navSellBtn) navSellBtn.addEventListener("click", openPostModal);
+  if (navSellBtn) navSellBtn.addEventListener("click", (e) => openPostModal(e.currentTarget));
 
   const heroSellBtn = document.getElementById("heroSellBtn");
-  if (heroSellBtn) heroSellBtn.addEventListener("click", openPostModal);
+  if (heroSellBtn) heroSellBtn.addEventListener("click", (e) => openPostModal(e.currentTarget));
 
   // Account Menu Toggle
   const accountBtn = document.getElementById("accountMenuBtn");
@@ -584,114 +799,178 @@ function initEventListeners() {
     });
   }
 
+  const accountListingsBtn = document.getElementById("accountListingsBtn");
+  if (accountListingsBtn) {
+    accountListingsBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeAccountMenu();
+      filterMyListings();
+    });
+  }
+
+  const accountSavedBtn = document.getElementById("accountSavedBtn");
+  if (accountSavedBtn) {
+    accountSavedBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeAccountMenu();
+      filterWishlistItems();
+    });
+  }
+
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".account-dropdown-wrapper")) {
       closeAccountMenu();
     }
   });
 
-  // Post Item Form Submit
+  document.addEventListener("keydown", handleGlobalKeydown);
+
+  // ---------- Post Item Form ----------
   const postForm = document.getElementById("postItemForm");
   if (postForm) {
+    const priceInput = document.getElementById("postPrice");
+    const phoneInput = document.getElementById("sellerPhone");
+    clearValidityOnInput(priceInput);
+    clearValidityOnInput(phoneInput);
+
     postForm.addEventListener("submit", (e) => {
       e.preventDefault();
 
       const title = document.getElementById("postTitle").value.trim();
-      const category = document.getElementById("postCategory").value;
-      const price = parseInt(document.getElementById("postPrice").value, 10);
+      const categoryValue = document.getElementById("postCategory").value;
+      const category = INITIAL_CATEGORIES.some(c => c.id === categoryValue) ? categoryValue : "other";
+      const price = Number(priceInput.value);
       const condition = document.getElementById("postCondition").value;
-      const badge = document.getElementById("postBadge").value;
+      const badgeValue = document.getElementById("postBadge").value;
+      const badge = Object.prototype.hasOwnProperty.call(ALLOWED_BADGES, badgeValue) ? badgeValue : "New";
       const description = document.getElementById("postDescription").value.trim();
       const sName = document.getElementById("sellerName").value.trim();
       const sDept = document.getElementById("sellerDept").value.trim();
-      const sPhone = document.getElementById("sellerPhone").value.trim();
       const sLocation = document.getElementById("sellerLocation").value.trim();
 
-      // Pick default image based on category
-      let image = "assets/images/exercise_books.jpg";
-      if (category === "electronics") image = "assets/images/dell_laptop.jpg";
-      else if (category === "fashion") image = "assets/images/handbag.jpg";
-      else if (category === "phones") image = "assets/images/samsung_phone.jpg";
-      else if (category === "food") image = "assets/images/cooked_meal.jpg";
-      else if (category === "home") image = "assets/images/kettle.jpg";
-      else if (category === "sports") image = "assets/images/basketball.jpg";
+      if (!title || !description || !sName || !sDept || !sLocation) {
+        showToast("Please fill in all the required fields.", "info");
+        return;
+      }
 
-      let badgeType = "new";
-      if (badge === "Popular") badgeType = "popular";
-      if (badge === "Best Deal") badgeType = "best-deal";
-      if (badge === "Fresh") badgeType = "fresh";
+      if (!Number.isInteger(price) || price < 10 || price > 10000000) {
+        failField(priceInput, "Enter a whole-number price between KSh 10 and KSh 10,000,000.");
+        return;
+      }
 
-      const newProduct = {
-        id: "p_" + Date.now(),
+      const phone = normalizeKenyanPhone(phoneInput.value);
+      if (!phone) {
+        failField(phoneInput, "Enter a valid Kenyan mobile number, e.g. 0712 345 678 or +254 712 345 678.");
+        return;
+      }
+
+      const newProduct = sanitizeProduct({
+        id: generateId("p"),
         title,
         price,
-        formattedPrice: `KSh ${price.toLocaleString()}`,
         category,
         badge,
-        badgeType,
-        image,
+        badgeType: ALLOWED_BADGES[badge],
+        image: CATEGORY_DEFAULT_IMAGES[category] || DEFAULT_PRODUCT_IMAGE,
         description,
         longDescription: description,
         condition,
         seller: {
           name: sName,
           department: sDept,
-          year: "Student",
-          avatar: "assets/images/avatar_brian.jpg",
-          phone: sPhone,
-          whatsapp: sPhone.replace(/[^0-9]/g, ""),
-          rating: 5.0,
-          salesCount: 1,
+          year: "",
+          avatar: DEFAULT_AVATAR,
+          phone: formatKenyanPhone(phone),
+          whatsapp: phone, // always the full 254... number so wa.me links work
           location: `Chuka University (${sLocation})`
         },
-        featured: true,
-        views: 1
-      };
+        mine: true
+      });
 
       products.unshift(newProduct);
-      saveProducts(products);
+      if (!saveProducts(products)) {
+        showToast("Your listing is visible now, but this browser could not save it (storage full or blocked).", "info");
+      }
 
       postForm.reset();
       closePostModal();
-      renderProducts();
+      resetAllFilters(); // make sure the new listing is not hidden by an active filter
+      scrollToProducts();
 
       showToast(`Listing "${newProduct.title}" created successfully!`, "success");
-
-      // Scroll to top of products
-      const section = document.getElementById("featuredSection");
-      if (section) section.scrollIntoView({ behavior: "smooth" });
     });
   }
 
-  // Cart Checkout Reservation
+  // ---------- Cart Checkout Reservation ----------
   const cartCheckoutBtn = document.getElementById("cartCheckoutBtn");
-  const checkoutModal = document.getElementById("checkoutModalOverlay");
   const closeCheckoutBtn = document.getElementById("closeCheckoutModalBtn");
+  const checkoutOverlay = document.getElementById("checkoutModalOverlay");
   const checkoutForm = document.getElementById("checkoutReserveForm");
 
   if (cartCheckoutBtn) {
     cartCheckoutBtn.addEventListener("click", () => {
       closeCartDrawer();
-      if (checkoutModal) checkoutModal.classList.add("open");
+      openCheckoutModal();
     });
   }
 
-  if (closeCheckoutBtn) {
-    closeCheckoutBtn.addEventListener("click", () => {
-      if (checkoutModal) checkoutModal.classList.remove("open");
+  if (closeCheckoutBtn) closeCheckoutBtn.addEventListener("click", closeCheckoutModal);
+
+  if (checkoutOverlay) {
+    checkoutOverlay.addEventListener("click", (e) => {
+      if (e.target === checkoutOverlay) closeCheckoutModal();
     });
   }
 
   if (checkoutForm) {
+    const buyerPhoneInput = document.getElementById("buyerPhone");
+    clearValidityOnInput(buyerPhoneInput);
+
     checkoutForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const buyerName = document.getElementById("buyerName").value;
-      const meetup = document.getElementById("meetupLocation").value;
 
-      if (checkoutModal) checkoutModal.classList.remove("open");
+      const buyerName = document.getElementById("buyerName").value.trim();
+      const meetup = document.getElementById("meetupLocation").value;
+      const buyerPhone = normalizeKenyanPhone(buyerPhoneInput.value);
+
+      if (!buyerName) {
+        showToast("Please enter your name.", "info");
+        return;
+      }
+      if (!buyerPhone) {
+        failField(buyerPhoneInput, "Enter a valid Kenyan mobile number, e.g. 0712 345 678.");
+        return;
+      }
+      if (Cart.items.length === 0) {
+        closeCheckoutModal();
+        showToast("Your cart is empty.", "info");
+        return;
+      }
+
+      const reservation = {
+        id: generateId("r"),
+        createdAt: new Date().toISOString(),
+        buyer: { name: buyerName, phone: formatKenyanPhone(buyerPhone) },
+        meetup,
+        total: Cart.getTotalPrice(),
+        items: Cart.items.map(item => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          quantity: item.quantity,
+          seller: item.seller
+        }))
+      };
+      saveReservation(reservation);
+
+      closeCheckoutModal();
+      checkoutForm.reset();
       Cart.clear();
 
-      showToast(`Reservation confirmed for ${buyerName}! Meetup spot: ${meetup}.`, "success");
+      showToast(
+        `Reservation saved for ${buyerName} (meetup: ${meetup}). Message each seller on WhatsApp to confirm.`,
+        "success"
+      );
     });
   }
 
@@ -713,9 +992,9 @@ function initEventListeners() {
   }
 }
 
-// Modal dialog helpers for footer links
+// Footer help links (shown as toasts until real pages exist)
 function openFaqModal() {
-  showToast("FAQs: Marketplace is exclusively for verified Chuka University students to trade on campus.", "info");
+  showToast("FAQs: This marketplace is for Chuka University students to buy and sell on campus.", "info");
 }
 
 function openContactModal() {
@@ -723,25 +1002,25 @@ function openContactModal() {
 }
 
 function openTermsModal() {
-  showToast("Terms: Direct student handover. Ensure inspection before M-Pesa transfer.", "info");
+  showToast("Terms: Direct student handover. Inspect items before any M-Pesa transfer.", "info");
 }
 
 function openPrivacyModal() {
-  showToast("Privacy: Student contacts are only visible to logged-in campus members.", "info");
+  showToast("Privacy: the phone number on a listing is shown to buyers so they can reach you on WhatsApp.", "info");
 }
 
 // Quick search from Hero trending tag pills
 function quickHeroSearch(term) {
+  activeCategory = "all";
+  activeFilter = "all";
+  setActiveChip("all");
+  renderCategories();
+
   const searchInput = document.getElementById("globalSearchInput");
-  if (searchInput) {
-    searchInput.value = term;
-    currentSearchTerm = term;
-    const clearBtn = document.getElementById("searchClearBtn");
-    if (clearBtn) clearBtn.style.display = "block";
-    renderProducts();
-  }
-  const section = document.getElementById("featuredSection");
-  if (section) {
-    section.scrollIntoView({ behavior: "smooth" });
-  }
+  if (searchInput) searchInput.value = term;
+  currentSearchTerm = term;
+  const clearBtn = document.getElementById("searchClearBtn");
+  if (clearBtn) clearBtn.style.display = "block";
+  renderProducts();
+  scrollToProducts();
 }
