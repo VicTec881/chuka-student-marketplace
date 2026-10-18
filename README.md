@@ -44,7 +44,7 @@ Without a backend, listings live only in each visitor's browser. With the backen
 
 1. Create a free project at [supabase.com](https://supabase.com) (note the database password you choose).
 2. In the dashboard open **SQL Editor → New query**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**. This creates the `listings` table and locks it so only the server can use it.
-3. Copy two values: the **Project URL**, and the **secret key** (Project Settings → API Keys, starts with `sb_secret_`).
+3. Copy two values: the **Project URL** (just `https://<project-ref>.supabase.co`, nothing after `.supabase.co`; the server ignores extra text such as `/rest/v1`), and the **secret key** (Project Settings → API Keys, starts with `sb_secret_`).
 4. In Vercel open **Project → Settings → Environment Variables** and add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (optionally `IP_HASH_SALT`). See `.env.example`. The secret key must never go in the code, in GitHub, or in a chat.
 5. Redeploy (Deployments → ⋯ → Redeploy) so the variables take effect.
 6. Open `https://<your-site>/api/listings`. You should see JSON with 11 sample listings. The first request inserts the samples.
