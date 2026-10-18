@@ -36,17 +36,18 @@ python -m http.server 8080
 ```
 Then navigate to `http://localhost:8080` in your web browser.
 
-## 🗄️ Shared Listings Backend (Vercel + MongoDB Atlas)
+## 🗄️ Shared Listings Backend (Vercel + Supabase)
 
 Without a backend, listings live only in each visitor's browser. With the backend, every student sees the same marketplace. If the backend is not configured or not reachable, the site automatically falls back to browser-only mode, so it never breaks.
 
 **One-time setup**
 
-1. Create a free cluster at [MongoDB Atlas](https://www.mongodb.com/atlas). Create a database user, and under *Network Access* allow `0.0.0.0/0` (Vercel's server addresses change, so a fixed allow-list does not work).
-2. In Atlas choose **Connect → Drivers** and copy the connection string. Replace `<password>` with your database user's password.
-3. In Vercel open **Project → Settings → Environment Variables** and add `MONGODB_URI` (and optionally `MONGODB_DB`, `IP_HASH_SALT`). See `.env.example`. Never put these values in the code or in GitHub.
-4. Redeploy (Deployments → ⋯ → Redeploy) so the variables take effect.
-5. Open `https://<your-site>/api/listings`. You should see JSON with 11 sample listings. The first request creates the collection and inserts the samples.
+1. Create a free project at [supabase.com](https://supabase.com) (note the database password you choose).
+2. In the dashboard open **SQL Editor → New query**, paste the contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**. This creates the `listings` table and locks it so only the server can use it.
+3. Copy two values: the **Project URL**, and the **secret key** (Project Settings → API Keys, starts with `sb_secret_`).
+4. In Vercel open **Project → Settings → Environment Variables** and add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (optionally `IP_HASH_SALT`). See `.env.example`. The secret key must never go in the code, in GitHub, or in a chat.
+5. Redeploy (Deployments → ⋯ → Redeploy) so the variables take effect.
+6. Open `https://<your-site>/api/listings`. You should see JSON with 11 sample listings. The first request inserts the samples.
 
 **API**
 
@@ -55,7 +56,12 @@ Without a backend, listings live only in each visitor's browser. With the backen
 | `GET` | `/api/listings` | Lists available listings, newest first (`?limit=` up to 200) |
 | `POST` | `/api/listings` | Creates a listing (JSON). Validated on the server; limited to 5 posts per hour per IP |
 
-Raw IP addresses are never stored, only a salted one-way hash used for the rate limit. Sample listings are marked `sample: true` in the database.
+Raw IP addresses are never stored, only a salted one-way hash used for the rate limit. Sample listings are marked `sample = true` in the database.
+
+**Free plan things to know**
+
+- Supabase **pauses free projects after 1 week of inactivity**. `vercel.json` schedules a once-a-day request to keep the project active. If it ever does pause, press *Restore project* in the Supabase dashboard.
+- The free plan has **no automatic backups**. Before real students depend on the data, either upgrade or export the table regularly (Table Editor → Export).
 
 **Known limits (until accounts are added)**: anyone can post, nobody can edit or delete a listing, and "My Listings" is remembered per browser.
 
@@ -76,7 +82,9 @@ chuka-student-marketplace/
 │   └── cart.js                  # Cart manager, quantity adjusters, drawer UI
 ├── api/
 │   └── listings.js              # Vercel serverless function: GET/POST /api/listings
-├── lib/                         # Server code: MongoDB connection, validation, handler, seed data
+├── lib/                         # Server code: Supabase store, validation, handler, seed data
+├── supabase/
+│   └── schema.sql               # Database table (run once in the Supabase SQL editor)
 ├── tests/                       # Unit tests (npm test)
 └── assets/
     └── images/
