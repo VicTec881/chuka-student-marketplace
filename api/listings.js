@@ -2,6 +2,6 @@
 // POST /api/listings  -> { listing: {...} }   (JSON body, see lib/validate.js)
 
 const { createHandler } = require("../lib/listings-handler");
-const { getListingsCollection } = require("../lib/db");
+const { getStore } = require("../lib/supabase-store");
 
-module.exports = createHandler({ getCollection: getListingsCollection });
+module.exports = createHandler({ getStore });
