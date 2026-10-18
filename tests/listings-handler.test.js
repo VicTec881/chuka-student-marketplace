@@ -3,52 +3,7 @@ const assert = require("node:assert/strict");
 const { createHandler, POSTS_PER_HOUR } = require("../lib/listings-handler");
 const { validateListingInput } = require("../lib/validate");
 
-// ---- minimal in-memory stand-in for the MongoDB collection methods the handler uses ----
-function fakeCollection() {
-  const docs = [];
-  let nextId = 1;
-  const matches = (doc, filter) =>
-    Object.entries(filter).every(([key, cond]) => {
-      if (cond && typeof cond === "object" && "$gt" in cond) return doc[key] > cond.$gt;
-      return doc[key] === cond;
-    });
-  return {
-    docs,
-    async countDocuments(filter = {}) {
-      return docs.filter((d) => matches(d, filter)).length;
-    },
-    find(filter = {}) {
-      let result = docs.filter((d) => matches(d, filter));
-      const cursor = {
-        sort(spec) {
-          const [[key, dir]] = Object.entries(spec);
-          result = [...result].sort((a, b) => {
-            const cmp = a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0;
-            return cmp * dir; // dir: 1 ascending, -1 descending (as in MongoDB)
-          });
-          return cursor;
-        },
-        limit(n) {
-          result = result.slice(0, n);
-          return cursor;
-        },
-        async toArray() {
-          return result;
-        }
-      };
-      return cursor;
-    },
-    async insertOne(doc) {
-      const _id = doc._id ?? `id${nextId++}`;
-      docs.push({ ...doc, _id });
-      return { insertedId: _id };
-    },
-    async insertMany(list) {
-      for (const d of list) docs.push({ ...d });
-      return { insertedCount: list.length };
-    }
-  };
-}
+const { createMemoryStore } = require("./helpers/memory-store");
 
 function mockRes() {
   const res = {
@@ -88,23 +43,23 @@ const validBody = () => ({
 });
 
 test("GET seeds the sample listings the first time and hides private fields", async () => {
-  const col = fakeCollection();
-  const handler = createHandler({ getCollection: async () => col });
+  const store = createMemoryStore();
+  const handler = createHandler({ getStore: async () => store });
   const { status, json } = await call(handler);
   assert.equal(status, 200);
   assert.equal(json.listings.length, 11);
   assert.ok(json.listings.every((l) => l.sample === true));
-  assert.ok(json.listings.every((l) => !("ipHash" in l) && !("_id" in l)));
+  assert.ok(json.listings.every((l) => !("ipHash" in l) && !("ip_hash" in l)));
   assert.equal(json.listings[0].id, "p1");
 
   // A second GET must not seed again.
   await call(handler);
-  assert.equal(col.docs.length, 11);
+  assert.equal(store.rows.length, 11);
 });
 
 test("POST creates a listing with a normalised WhatsApp number", async () => {
-  const col = fakeCollection();
-  const handler = createHandler({ getCollection: async () => col });
+  const store = createMemoryStore();
+  const handler = createHandler({ getStore: async () => store });
   await call(handler); // seeds the sample listings first, as on the live site
   await new Promise((r) => setTimeout(r, 5));
   const { status, json } = await call(handler, { method: "POST", body: validBody() });
@@ -120,7 +75,7 @@ test("POST creates a listing with a normalised WhatsApp number", async () => {
 });
 
 test("POST rejects invalid input with per-field messages", async () => {
-  const handler = createHandler({ getCollection: async () => fakeCollection() });
+  const handler = createHandler({ getStore: async () => createMemoryStore() });
   const bad = { ...validBody(), title: "x", price: 5, sellerPhone: "12345", category: "weapons" };
   const { status, json } = await call(handler, { method: "POST", body: bad });
   assert.equal(status, 400);
@@ -131,8 +86,8 @@ test("POST rejects invalid input with per-field messages", async () => {
 });
 
 test("POST stores markup as plain text and ignores client-supplied internal fields", async () => {
-  const col = fakeCollection();
-  const handler = createHandler({ getCollection: async () => col });
+  const store = createMemoryStore();
+  const handler = createHandler({ getStore: async () => store });
   const body = {
     ...validBody(),
     title: `<img src=x onerror=alert(1)> Cheap`,
@@ -140,7 +95,7 @@ test("POST stores markup as plain text and ignores client-supplied internal fiel
     sample: true,
     status: "sold",
     ipHash: "forged",
-    _id: "p1"
+    id: "p1"
   };
   const { status, json } = await call(handler, { method: "POST", body });
   assert.equal(status, 201);
@@ -148,13 +103,14 @@ test("POST stores markup as plain text and ignores client-supplied internal fiel
   assert.match(json.listing.image, /^assets\/images\//);
   assert.equal(json.listing.sample, false);
   assert.equal(json.listing.status, "available");
-  assert.notEqual(col.docs[0].ipHash, "forged");
-  assert.notEqual(col.docs[0]._id, "p1");
+  const stored = store.rows[store.rows.length - 1];
+  assert.notEqual(stored.ipHash, "forged");
+  assert.notEqual(stored.id, "p1");
 });
 
 test("POST is rate limited per IP, but another IP is unaffected", async () => {
-  const col = fakeCollection();
-  const handler = createHandler({ getCollection: async () => col });
+  const store = createMemoryStore();
+  const handler = createHandler({ getStore: async () => store });
   for (let i = 0; i < POSTS_PER_HOUR; i++) {
     const r = await call(handler, { method: "POST", body: validBody() });
     assert.equal(r.status, 201, `post ${i + 1}`);
@@ -172,18 +128,18 @@ test("POST is rate limited per IP, but another IP is unaffected", async () => {
 });
 
 test("POST requires JSON", async () => {
-  const handler = createHandler({ getCollection: async () => fakeCollection() });
+  const handler = createHandler({ getStore: async () => createMemoryStore() });
   const r = await call(handler, { method: "POST", body: "x", headers: { "content-type": "text/plain" } });
   assert.equal(r.status, 415);
 });
 
 test("unsupported methods get 405 and a missing database config gets 503", async () => {
-  const handler = createHandler({ getCollection: async () => fakeCollection() });
+  const handler = createHandler({ getStore: async () => createMemoryStore() });
   assert.equal((await call(handler, { method: "DELETE" })).status, 405);
 
-  const { NotConfiguredError } = require("../lib/db");
+  const { NotConfiguredError } = require("../lib/errors");
   const unconfigured = createHandler({
-    getCollection: async () => {
+    getStore: async () => {
       throw new NotConfiguredError();
     }
   });
@@ -197,8 +153,8 @@ test("unexpected database errors return 500 without leaking details", async () =
   console.error = () => {};
   try {
     const handler = createHandler({
-      getCollection: async () => {
-        throw new Error("mongodb+srv://user:secret@cluster exploded");
+      getStore: async () => {
+        throw new Error("request to https://x.supabase.co with key sb_secret_abc exploded");
       }
     });
     const r = await call(handler);

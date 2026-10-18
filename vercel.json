@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/listings?limit=1", "schedule": "0 6 * * *" }
+  ]
+}
