@@ -29,3 +29,7 @@ create index if not exists listings_ip_created_idx on public.listings (ip_hash, 
 -- key cannot read or write anything. Only the server, using the secret key, can.
 alter table public.listings enable row level security;
 revoke all on public.listings from anon, authenticated;
+
+-- Make sure the server's role can use the table even if the project was created with
+-- "Automatically expose new tables" switched off.
+grant select, insert, update, delete on public.listings to service_role;
