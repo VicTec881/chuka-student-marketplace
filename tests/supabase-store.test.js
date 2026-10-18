@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createClient } = require("@supabase/supabase-js");
-const { createSupabaseStore, toRow, fromRow } = require("../lib/supabase-store");
+const { createSupabaseStore, normalizeSupabaseUrl, toRow, fromRow } = require("../lib/supabase-store");
 
 const URL_BASE = "https://example-project.supabase.co";
 const KEY = "sb_secret_test_key";
@@ -156,4 +156,46 @@ test("getStore refuses to run without credentials", () => {
     if (saved.u) process.env.SUPABASE_URL = saved.u;
     if (saved.k) process.env.SUPABASE_SECRET_KEY = saved.k;
   }
+});
+
+test("normalizeSupabaseUrl keeps only the origin, however the URL was copied", () => {
+  const expected = "https://abcdxyz.supabase.co";
+  for (const input of [
+    "https://abcdxyz.supabase.co",
+    "https://abcdxyz.supabase.co/",
+    "https://abcdxyz.supabase.co/rest/v1",
+    "https://abcdxyz.supabase.co/rest/v1/",
+    "  https://abcdxyz.supabase.co/rest/v1/listings?x=1  ",
+    "https://ABCDXYZ.supabase.co/"
+  ]) {
+    assert.equal(normalizeSupabaseUrl(input), expected, `input: ${JSON.stringify(input)}`);
+  }
+  for (const bad of ["", "abcdxyz.supabase.co", "ftp://abcdxyz.supabase.co", "not a url"]) {
+    assert.throws(() => normalizeSupabaseUrl(bad), { name: "NotConfiguredError" }, `input: ${JSON.stringify(bad)}`);
+  }
+});
+
+test("root cause of PGRST125: a URL ending in /rest/v1 doubles the path unless it is normalised", async () => {
+  const seen = [];
+  const fetchStub = async (input) => {
+    seen.push(new URL(typeof input === "string" ? input : input.url).pathname);
+    return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const build = (url) =>
+    createSupabaseStore(
+      createClient(url, KEY, { auth: { persistSession: false }, global: { fetch: fetchStub } })
+    );
+
+  await build("https://abcdxyz.supabase.co/rest/v1/").listAvailable(1); // what a wrongly copied value does
+  await build(normalizeSupabaseUrl("https://abcdxyz.supabase.co/rest/v1/")).listAvailable(1);
+
+  assert.equal(seen[0], "/rest/v1/rest/v1/listings", "un-normalised URL produces the broken path");
+  assert.equal(seen[1], "/rest/v1/listings", "normalised URL produces the correct path");
+});
+
+test("a failed HEAD count (empty 404) is an error, not zero rows", async () => {
+  // supabase-js reports a bodiless 404 as "no error, no count"; we must not read that as an empty table.
+  const { store } = makeStore(() => ({ status: 404 }));
+  await assert.rejects(() => store.count(), /no count returned \(HTTP 204\)/);
+  await assert.rejects(() => store.countRecentByIp("h", new Date()), /no count returned/);
 });
