@@ -24,6 +24,11 @@ function createMemoryStore() {
       const { ipHash, ...publicFields } = row;
       return publicFields;
     },
+    uploads: [],
+    async uploadImage(photo) {
+      this.uploads.push(photo);
+      return `https://example.supabase.co/storage/v1/object/public/listing-images/2026-10/test${this.uploads.length}.${photo.ext}`;
+    },
     async seed(listings) {
       for (const l of listings) if (!rows.some((r) => r.id === l.id)) rows.push({ ...l });
     }

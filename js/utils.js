@@ -21,7 +21,11 @@ function escapeHtml(value) {
  * Anything else (javascript:, data:, external URLs, tampered localStorage) falls back.
  */
 function safeImagePath(src, fallback = DEFAULT_PRODUCT_IMAGE) {
-  return typeof src === "string" && /^assets\/images\/[\w\-.]+$/.test(src) ? src : fallback;
+  if (typeof src !== "string") return fallback;
+  if (/^assets\/images\/[\w\-.]+$/.test(src)) return src;
+  // Photos uploaded by students live in this project's Supabase public "listing-images" bucket.
+  if (/^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/listing-images\/[\w\-./]+$/.test(src) && !src.includes("..")) return src;
+  return fallback;
 }
 
 /**
