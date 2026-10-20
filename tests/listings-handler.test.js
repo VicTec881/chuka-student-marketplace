@@ -91,7 +91,6 @@ test("POST stores markup as plain text and ignores client-supplied internal fiel
   const body = {
     ...validBody(),
     title: `<img src=x onerror=alert(1)> Cheap`,
-    image: "https://evil.example/x.png",
     sample: true,
     status: "sold",
     ipHash: "forged",
@@ -106,6 +105,15 @@ test("POST stores markup as plain text and ignores client-supplied internal fiel
   const stored = store.rows[store.rows.length - 1];
   assert.notEqual(stored.ipHash, "forged");
   assert.notEqual(stored.id, "p1");
+});
+
+test("POST rejects an outside image URL: only uploaded photos can become the image", async () => {
+  const store = createMemoryStore();
+  const handler = createHandler({ getStore: async () => store });
+  const { status, json } = await call(handler, { method: "POST", body: { ...validBody(), image: "https://evil.example/x.png" } });
+  assert.equal(status, 400);
+  assert.ok(json.fields.image);
+  assert.equal(store.rows.length, 0);
 });
 
 test("POST is rate limited per IP, but another IP is unaffected", async () => {

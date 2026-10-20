@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
   renderProducts(); // shows the loading message until listings arrive
   updateWishlistDot();
   initEventListeners();
+  initPhotoUpload();
 
   const year = document.getElementById("footerYear");
   if (year) year.textContent = new Date().getFullYear();
@@ -67,6 +68,10 @@ async function loadListings() {
   }
 
   listingsLoading = false;
+
+  // Photos are stored on the shared backend, so the photo field only appears when it is connected.
+  const photoGroup = document.getElementById("photoGroup");
+  if (photoGroup) photoGroup.hidden = !sharedMode;
 
   const removed = Cart.reconcile(products);
   if (removed > 0) {
@@ -498,6 +503,83 @@ function closeProductModal() {
 }
 
 // ================= POST AN ITEM MODAL =================
+// ---------- Product photo (Sell form) ----------
+// The chosen photo is resized in the browser (max 1000px, JPEG) so uploads stay small and fast
+// on mobile data; the server checks it again before storing it.
+let selectedPhoto = null; // data URL of the resized photo, or null
+
+function readFileAsImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unreadable")); };
+    img.src = url;
+  });
+}
+
+async function resizePhoto(file, maxSide = 1000, quality = 0.82) {
+  const img = await readFileAsImage(file);
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff"; // PNGs with transparency become white, not black
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function setPhotoHelp(message, isError) {
+  const help = document.getElementById("photoHelp");
+  if (!help) return;
+  help.textContent = message;
+  help.classList.toggle("error", !!isError);
+}
+
+function clearPhoto() {
+  selectedPhoto = null;
+  const input = document.getElementById("postPhoto");
+  if (input) input.value = "";
+  const preview = document.getElementById("photoPreview");
+  const drop = document.getElementById("photoDrop");
+  if (preview) preview.hidden = true;
+  if (drop) drop.hidden = false;
+  setPhotoHelp("Show the actual item. Listings with a clear photo get more messages.", false);
+}
+
+function initPhotoUpload() {
+  const input = document.getElementById("postPhoto");
+  if (!input) return;
+  input.addEventListener("change", async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      clearPhoto();
+      setPhotoHelp("Please choose a JPG, PNG or WebP photo.", true);
+      return;
+    }
+    setPhotoHelp("Preparing your photo…", false);
+    try {
+      selectedPhoto = await resizePhoto(file);
+    } catch (e) {
+      clearPhoto();
+      setPhotoHelp("We could not read that photo. Please try another one.", true);
+      return;
+    }
+    document.getElementById("photoPreviewImg").src = selectedPhoto;
+    document.getElementById("photoPreview").hidden = false;
+    document.getElementById("photoDrop").hidden = true;
+    setPhotoHelp("Looks good! Tap Remove photo to choose a different one.", false);
+  });
+  const removeBtn = document.getElementById("photoRemoveBtn");
+  if (removeBtn) removeBtn.addEventListener("click", () => {
+    clearPhoto();
+    input.focus();
+  });
+}
+
 function openPostModal(trigger) {
   const modal = document.getElementById("postModalOverlay");
   if (modal) {
@@ -909,6 +991,13 @@ function initEventListeners() {
 
       let newProduct = null;
 
+      if (sharedMode && !selectedPhoto) {
+        setPhotoHelp("Please add a photo of the item you are selling.", true);
+        document.getElementById("postPhoto").focus();
+        showToast("Please add a photo of your item.", "info");
+        return;
+      }
+
       if (sharedMode) {
         // ---- Shared backend: the server validates again and stores the listing for everyone ----
         const submitBtn = postForm.querySelector("button[type='submit']");
@@ -925,6 +1014,7 @@ function initEventListeners() {
           condition,
           badge,
           description,
+          image: selectedPhoto,
           sellerName: sName,
           sellerDept: sDept,
           sellerPhone: phoneInput.value,
@@ -943,6 +1033,7 @@ function initEventListeners() {
             const [field, message] = Object.entries(result.fields)[0] || [];
             if (fieldInputs[field]) failField(fieldInputs[field], message);
             else showToast(message || "Please check the form and try again.", "info");
+            if (message && field === "image") setPhotoHelp(message, true);
           } else if (result.error === "rate_limited") {
             showToast(result.message || "You've posted a lot recently. Please try again later.", "info");
           } else {
@@ -986,6 +1077,7 @@ function initEventListeners() {
       }
 
       postForm.reset();
+      clearPhoto();
       closePostModal();
       resetAllFilters(); // make sure the new listing is not hidden by an active filter
       scrollToProducts();
