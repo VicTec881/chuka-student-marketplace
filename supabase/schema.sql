@@ -47,6 +47,16 @@ create table if not exists public.login_codes (
   window_start    timestamptz not null,
   sends_in_window integer     not null default 0
 );
+-- Counts sign-in code requests per (hashed) network address, so the email quota cannot be drained.
+create table if not exists public.login_throttle (
+  ip_hash      text primary key,
+  window_start timestamptz not null,
+  count        integer     not null default 0
+);
+alter table public.login_throttle enable row level security;
+revoke all on public.login_throttle from anon, authenticated;
+grant select, insert, update, delete on public.login_throttle to service_role;
+
 alter table public.login_codes enable row level security;
 revoke all on public.login_codes from anon, authenticated;
 grant select, insert, update, delete on public.login_codes to service_role;

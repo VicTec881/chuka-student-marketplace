@@ -68,13 +68,13 @@ function setBusy(btn, busy, label) {
 function renderAccountUI() {
   const signedIn = !!currentUser;
   const name = signedIn ? currentUser.email : "Guest";
-  const note = signedIn ? "Verified Chuka student" : "Browsing as guest";
+  const note = signedIn ? (currentUser.student ? "Verified Chuka student" : "Signed in") : "Browsing as guest";
   const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   set("accountUserName", name);
   set("accountUserNote", note);
   set("mobileProfileName", name);
   set("mobileProfileNote", note);
-  set("mobileSignInLabel", signedIn ? "Sign out" : "Sign in with student email");
+  set("mobileSignInLabel", signedIn ? "Sign out" : "Sign in");
 
   const signIn = document.getElementById("accountSignInBtn");
   const signOut = document.getElementById("accountSignOutBtn");
@@ -122,8 +122,8 @@ function initAccountUI() {
     e.preventDefault();
     setFormError(emailError, "");
     const value = email.value.trim();
-    if (!/^[^\s@]+@([a-z0-9-]+\.)*chuka\.ac\.ke$/i.test(value)) {
-      setFormError(emailError, "Use your Chuka University email (ending in @chuka.ac.ke).");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setFormError(emailError, "Enter a valid email address.");
       email.focus();
       return;
     }

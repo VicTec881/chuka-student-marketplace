@@ -428,7 +428,7 @@ function openProductModal(productId, trigger) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <span>Sign in to see seller contact</span>
         </button>
-        <div class="contact-locked-note">Free, with your @chuka.ac.ke email. This keeps contacts for students only.</div>`
+        <div class="contact-locked-note">Free and quick: we just email you a 6-digit code. No password needed.</div>`
     : waNumber
     ? `<a
           href="https://wa.me/${waNumber}?text=${whatsappMessage}"

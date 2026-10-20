@@ -25,6 +25,9 @@ function createMemoryStore() {
       return publicFields;
     },
     codes: new Map(),
+    throttles: new Map(),
+    async getThrottle(h) { const r = this.throttles.get(h); return r ? { ...r } : null; },
+    async saveThrottle(r) { this.throttles.set(r.ipHash, { ...r }); },
     async getLoginCode(email) { const r = this.codes.get(email); return r ? { ...r } : null; },
     async saveLoginCode(r) { this.codes.set(r.email, { ...r }); },
     async deleteLoginCode(email) { this.codes.delete(email); },
