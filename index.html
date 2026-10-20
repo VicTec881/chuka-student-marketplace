@@ -78,7 +78,7 @@
               </div>
               <a href="#" class="account-menu-item" id="accountSignInBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-                <span>Sign in with student email</span>
+                <span>Sign in</span>
               </a>
               <a href="#" class="account-menu-item" id="accountListingsBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="8" height="8" x="3" y="3" rx="1"/><rect width="8" height="8" x="13" y="3" rx="1"/><rect width="8" height="8" x="3" y="13" rx="1"/><rect width="8" height="8" x="13" y="13" rx="1"/></svg>
@@ -149,7 +149,7 @@
       </a>
       <button type="button" class="mobile-drawer-item" id="mobileSignInBtn" onclick="closeMobileDrawer(); handleAccountAuthButton();">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        <span id="mobileSignInLabel">Sign in with student email</span>
+        <span id="mobileSignInLabel">Sign in</span>
       </button>
       <button type="button" class="mobile-drawer-item" onclick="closeMobileDrawer(); openPostModal();">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
@@ -452,14 +452,14 @@
       </button>
       <div class="post-form-content">
         <div class="form-header">
-          <h2 class="form-title" id="signInTitle">Sign in as a Chuka student</h2>
-          <p class="form-subtitle" id="signInSubtitle">Sign in to see seller contacts and to get a Verified Student badge on your listings. No password needed.</p>
+          <h2 class="form-title" id="signInTitle">Sign in</h2>
+          <p class="form-subtitle" id="signInSubtitle">Sign in to see seller contacts and to manage your listings. Use your @chuka.ac.ke email to get a Verified Student badge. No password needed.</p>
         </div>
 
         <form id="signInEmailForm" novalidate>
           <div class="form-group">
-            <label class="form-label" for="signInEmail">Your Chuka University email</label>
-            <input type="email" id="signInEmail" class="form-control" placeholder="e.g. jane.doe@students.chuka.ac.ke" autocomplete="email" inputmode="email" required>
+            <label class="form-label" for="signInEmail">Your email address</label>
+            <input type="email" id="signInEmail" class="form-control" placeholder="e.g. jane@gmail.com or jane@students.chuka.ac.ke" autocomplete="email" inputmode="email" required>
           </div>
           <p class="signin-error" id="signInEmailError" role="alert" hidden></p>
           <button type="submit" class="btn-primary signin-submit" id="signInEmailBtn"><span>Email me a code</span></button>
@@ -492,8 +492,8 @@
         </div>
 
         <p class="signin-note" id="postSignInNote" hidden>
-          <strong>Tip:</strong> <button type="button" class="signin-link" id="postSignInLink">Sign in with your student email</button>
-          first to get a Verified Student badge and to be able to mark items as sold later.
+          <strong>Tip:</strong> <button type="button" class="signin-link" id="postSignInLink">Sign in</button>
+          first to be able to mark items as sold later. Use your @chuka.ac.ke email to get a Verified Student badge.
         </p>
 
         <form id="postItemForm">

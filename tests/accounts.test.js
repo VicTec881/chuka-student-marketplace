@@ -36,11 +36,19 @@ const listingBody = (extra = {}) => ({
   description: "Casio fx-991 works perfectly", sellerName: "Jane", sellerDept: "BSc CS", sellerPhone: "0712345678", sellerLocation: "Library", ...extra
 });
 
-test("only chuka.ac.ke addresses are accepted; +tags and case are normalised", () => {
-  assert.equal(A.normalizeStudentEmail("Jane.Doe+shop@Chuka.ac.ke"), "jane.doe@chuka.ac.ke");
-  assert.equal(A.normalizeStudentEmail("x@students.chuka.ac.ke"), "x@students.chuka.ac.ke");
-  for (const bad of ["x@gmail.com", "x@chuka.ac.ke.evil.com", "x@notchuka.ac.ke", "x@evilchuka.ac.ke", "@chuka.ac.ke", "a b@chuka.ac.ke", "", null, "x@chuka.ac.ke\nbcc:y@z.com"]) {
-    assert.equal(A.normalizeStudentEmail(bad), null, String(bad));
+test("emails are normalised; malformed or header-injecting addresses are rejected", () => {
+  assert.equal(A.normalizeEmail("Jane.Doe+shop@Chuka.ac.ke"), "jane.doe@chuka.ac.ke");
+  assert.equal(A.normalizeEmail(" wanjikushiko@gmail.com "), "wanjikushiko@gmail.com");
+  for (const bad of ["nope", "a@b", "@gmail.com", "a b@gmail.com", "a@gmail..com", "", null, "x@gmail.com\nbcc:y@z.com", "x@gmail.com,y@z.com", '"a"@gmail.com', "a@-x.com", "+@gmail.com"]) {
+    assert.equal(A.normalizeEmail(bad), null, String(bad));
+  }
+});
+
+test("only chuka.ac.ke (and its subdomains) count as student addresses", () => {
+  assert.equal(A.isStudentEmail("a@chuka.ac.ke"), true);
+  assert.equal(A.isStudentEmail("a@students.chuka.ac.ke"), true);
+  for (const no of ["a@gmail.com", "a@chuka.ac.ke.evil.com", "a@notchuka.ac.ke", "a@evilchuka.ac.ke", null, undefined]) {
+    assert.equal(A.isStudentEmail(no), false, String(no));
   }
 });
 
@@ -53,8 +61,8 @@ test("session tokens verify, and forged, tampered or expired ones do not", () =>
   assert.equal(A.readSessionToken(`${forged}.${s}`, 2000), null);
   assert.equal(A.readSessionToken(`${p}.AAAA`, 2000), null);
   assert.equal(A.readSessionToken("garbage", 2000), null);
-  const outsider = Buffer.from(JSON.stringify({ e: "x@gmail.com", x: 9e15 })).toString("base64url");
-  assert.equal(A.readSessionToken(outsider, 2000), null);
+  const gmail = A.createSessionToken("wanjikushiko@gmail.com", 1000);
+  assert.equal(A.readSessionToken(gmail, 2000), "wanjikushiko@gmail.com", "any valid email can hold a session");
 });
 
 test("sign-in flow: code is emailed, verifies once, sets an HttpOnly cookie", async () => {
@@ -72,16 +80,16 @@ test("sign-in flow: code is emailed, verifies once, sets an HttpOnly cookie", as
   assert.match(ok.headers["set-cookie"], /HttpOnly/);
   assert.match(ok.headers["set-cookie"], /SameSite=Lax/);
   const me = await call(ctx.auth, { query: { action: "me" }, cookie: cookieOf(ok) });
-  assert.deepEqual(me.json.user, { email: "jane@chuka.ac.ke" });
+  assert.deepEqual(me.json.user, { email: "jane@chuka.ac.ke", student: true });
   assert.equal((await call(ctx.auth, { query: { action: "me" } })).json.user, null);
 
   const again = await call(ctx.auth, { method: "POST", query: { action: "verify" }, body: { email: "jane@chuka.ac.ke", code: ctx.sent[0].c } });
   assert.equal(again.status, 400, "a code cannot be reused");
 });
 
-test("non-Chuka emails get no code; wrong codes lock out after 5; expired codes fail", async () => {
+test("invalid emails get no code; wrong codes lock out after 5; expired codes fail", async () => {
   const ctx = setup();
-  const r = await call(ctx.auth, { method: "POST", query: { action: "start" }, body: { email: "someone@gmail.com" } });
+  const r = await call(ctx.auth, { method: "POST", query: { action: "start" }, body: { email: "not-an-email" } });
   assert.equal(r.status, 400);
   assert.equal(ctx.sent.length, 0);
 
@@ -108,6 +116,44 @@ test("code requests are rate limited per email", async () => {
   ctx.advance(61000);
   assert.equal((await start()).status, 429, "hourly cap");
   assert.equal(ctx.sent.length, 5);
+});
+
+test("gmail users can sign in, but are not flagged as Chuka students or verified sellers", async () => {
+  const ctx = setup();
+  const g = await signIn(ctx, "wanjikushiko@gmail.com");
+  assert.equal(g.r.status, 200);
+  assert.deepEqual(g.r.json.user, { email: "wanjikushiko@gmail.com", student: false });
+  const me = await call(ctx.auth, { query: { action: "me" }, cookie: g.cookie });
+  assert.equal(me.json.user.student, false);
+
+  const list = await call(ctx.listings, { cookie: g.cookie });
+  assert.ok(list.json.listings.every((l) => l.contactLocked === false), "any signed-in user sees contacts");
+  const posted = await call(ctx.listings, { method: "POST", body: listingBody({ title: "Gmail seller" }), cookie: g.cookie });
+  assert.equal(posted.json.listing.verified, false);
+  assert.equal(posted.json.listing.mine, true, "but they can still manage their own listing");
+
+  const s = await signIn(ctx, "jane@students.chuka.ac.ke");
+  assert.equal(s.r.json.user.student, true);
+  const verified = await call(ctx.listings, { method: "POST", body: listingBody({ title: "Student seller" }), cookie: s.cookie });
+  assert.equal(verified.json.listing.verified, true);
+});
+
+test("code requests are limited per network across different emails", async () => {
+  const ctx = setup();
+  for (let i = 0; i < A.MAX_STARTS_PER_IP_HOUR; i++) {
+    const r = await call(ctx.auth, { method: "POST", query: { action: "start" }, body: { email: `user${i}@gmail.com` } });
+    assert.equal(r.status, 200, `request ${i}`);
+  }
+  const blocked = await call(ctx.auth, { method: "POST", query: { action: "start" }, body: { email: "another@gmail.com" } });
+  assert.equal(blocked.status, 429);
+  assert.equal(ctx.sent.length, A.MAX_STARTS_PER_IP_HOUR);
+  // a different network is unaffected
+  const other = await call(ctx.auth, { method: "POST", query: { action: "start" }, body: { email: "another@gmail.com" }, headers: { "x-forwarded-for": "10.9.9.9" } });
+  assert.equal(other.status, 200);
+  // and the limit resets after an hour
+  ctx.advance(61 * 60 * 1000);
+  const later = await call(ctx.auth, { method: "POST", query: { action: "start" }, body: { email: "another2@gmail.com" } });
+  assert.equal(later.status, 200);
 });
 
 test("auth rejects cross-site and non-JSON requests, and logout clears the cookie", async () => {
