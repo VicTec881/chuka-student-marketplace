@@ -54,7 +54,9 @@ Without a backend, listings live only in each visitor's browser. With the backen
 | Method | Path | What it does |
 |---|---|---|
 | `GET` | `/api/listings` | Lists available listings, newest first (`?limit=` up to 200) |
-| `POST` | `/api/listings` | Creates a listing (JSON). Validated on the server; limited to 5 posts per hour per IP |
+| `POST` | `/api/listings` | Creates a listing (JSON, with an optional `image` photo as a data URL). Validated on the server; limited to 5 posts per hour per IP |
+
+**Photos:** the Sell form resizes the chosen photo in the browser (max 1000px JPEG), the server checks the real file type and size (max 1.5 MB), then stores it in a public Supabase Storage bucket named `listing-images`. The bucket is created automatically on the first upload, so no extra setup is needed. Free plan storage is 1 GB.
 
 Raw IP addresses are never stored, only a salted one-way hash used for the rate limit. Sample listings are marked `sample = true` in the database.
 
