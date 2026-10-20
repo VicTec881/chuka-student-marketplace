@@ -73,9 +73,13 @@
             </button>
             <div class="account-menu" id="accountDropdown">
               <div class="account-menu-header">
-                <div class="account-menu-user">Guest</div>
-                <div class="account-menu-guest">Browsing as guest • Accounts coming soon</div>
+                <div class="account-menu-user" id="accountUserName">Guest</div>
+                <div class="account-menu-guest" id="accountUserNote">Browsing as guest</div>
               </div>
+              <a href="#" class="account-menu-item" id="accountSignInBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                <span>Sign in</span>
+              </a>
               <a href="#" class="account-menu-item" id="accountListingsBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="8" height="8" x="3" y="3" rx="1"/><rect width="8" height="8" x="13" y="3" rx="1"/><rect width="8" height="8" x="3" y="13" rx="1"/><rect width="8" height="8" x="13" y="13" rx="1"/></svg>
                 <span>My Listings</span>
@@ -83,6 +87,10 @@
               <a href="#" class="account-menu-item" id="accountSavedBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                 <span>Saved Items</span>
+              </a>
+              <a href="#" class="account-menu-item" id="accountSignOutBtn" hidden>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span>Sign out</span>
               </a>
             </div>
           </div>
@@ -121,8 +129,8 @@
     <div class="mobile-drawer-profile">
       <div class="mobile-profile-avatar" aria-hidden="true">G</div>
       <div style="flex: 1; min-width: 0;">
-        <div class="mobile-profile-name">Guest</div>
-        <div class="account-menu-guest">Browsing as guest • Accounts coming soon</div>
+        <div class="mobile-profile-name" id="mobileProfileName">Guest</div>
+        <div class="account-menu-guest" id="mobileProfileNote">Browsing as guest</div>
       </div>
     </div>
 
@@ -139,6 +147,10 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="8" height="8" x="3" y="3" rx="1"/><rect width="8" height="8" x="13" y="3" rx="1"/><rect width="8" height="8" x="3" y="13" rx="1"/><rect width="8" height="8" x="13" y="13" rx="1"/></svg>
         <span>All Categories</span>
       </a>
+      <button type="button" class="mobile-drawer-item" id="mobileSignInBtn" onclick="closeMobileDrawer(); handleAccountAuthButton();">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        <span id="mobileSignInLabel">Sign in</span>
+      </button>
       <button type="button" class="mobile-drawer-item" onclick="closeMobileDrawer(); openPostModal();">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
         <span>Sell on Marketplace</span>
@@ -432,6 +444,41 @@
     </div>
   </div>
 
+  <!-- ================= SIGN-IN MODAL ================= -->
+  <div class="modal-overlay" id="signInModalOverlay" role="dialog" aria-modal="true" aria-labelledby="signInTitle">
+    <div class="modal-window signin-window">
+      <button type="button" class="modal-close-btn" id="closeSignInBtn" aria-label="Close sign in">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div class="post-form-content">
+        <div class="form-header">
+          <h2 class="form-title" id="signInTitle">Sign in</h2>
+          <p class="form-subtitle" id="signInSubtitle">Sign in to see seller contacts and to manage your listings. Use your @chuka.ac.ke email to get a Verified Student badge. No password needed.</p>
+        </div>
+
+        <form id="signInEmailForm" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="signInEmail">Your email address</label>
+            <input type="email" id="signInEmail" class="form-control" placeholder="e.g. jane@gmail.com or jane@students.chuka.ac.ke" autocomplete="email" inputmode="email" required>
+          </div>
+          <p class="signin-error" id="signInEmailError" role="alert" hidden></p>
+          <button type="submit" class="btn-primary signin-submit" id="signInEmailBtn"><span>Email me a code</span></button>
+        </form>
+
+        <form id="signInCodeForm" novalidate hidden>
+          <p class="signin-sent" id="signInSent"></p>
+          <div class="form-group">
+            <label class="form-label" for="signInCode">6-digit code</label>
+            <input type="text" id="signInCode" class="form-control signin-code" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" required>
+          </div>
+          <p class="signin-error" id="signInCodeError" role="alert" hidden></p>
+          <button type="submit" class="btn-primary signin-submit" id="signInCodeBtn"><span>Sign in</span></button>
+          <button type="button" class="signin-link" id="signInBackBtn">Use a different email</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= POST AN ITEM MODAL (START SELLING) ================= -->
   <div class="modal-overlay" id="postModalOverlay" role="dialog" aria-modal="true">
     <div class="modal-window">
@@ -443,6 +490,11 @@
           <h2 class="form-title">Sell on Chuka Marketplace</h2>
           <p class="form-subtitle">List your item in seconds for thousands of students on campus.</p>
         </div>
+
+        <p class="signin-note" id="postSignInNote" hidden>
+          <strong>Tip:</strong> <button type="button" class="signin-link" id="postSignInLink">Sign in</button>
+          first to be able to mark items as sold later. Use your @chuka.ac.ke email to get a Verified Student badge.
+        </p>
 
         <form id="postItemForm">
           <div class="form-grid">
@@ -663,6 +715,7 @@
   <script src="js/data.js"></script>
   <script src="js/api.js"></script>
   <script src="js/cart.js"></script>
+  <script src="js/account.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

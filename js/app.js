@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateWishlistDot();
   initEventListeners();
   initPhotoUpload();
+  initAccountUI();
 
   const year = document.getElementById("footerYear");
   if (year) year.textContent = new Date().getFullYear();
@@ -55,17 +56,20 @@ document.addEventListener("DOMContentLoaded", () => {
  */
 async function loadListings() {
   try {
-    const listings = await fetchListings();
-    const myIds = getMyListingIds();
+    const { listings, user } = await fetchListings();
+    const myIds = getMyListingIds(); // listings posted from this browser while signed out
     products = listings
       .map(sanitizeProduct)
       .filter(Boolean)
-      .map(p => ({ ...p, mine: myIds.has(p.id) }));
+      .map(p => ({ ...p, mine: p.mine === true || myIds.has(p.id) }));
     sharedMode = true;
+    currentUser = user;
   } catch (e) {
     products = getStoredProducts();
     sharedMode = false;
+    currentUser = null;
   }
+  renderAccountUI();
 
   listingsLoading = false;
 
@@ -388,7 +392,7 @@ function filterWishlistItems() {
 
 function filterMyListings() {
   if (!products.some(p => p.mine === true)) {
-    showToast("You haven't posted any listings from this browser yet.", "info");
+    showToast(currentUser ? "You haven't posted any listings yet." : "You haven't posted any listings from this browser yet. Sign in to see the ones you posted while signed in.", "info");
     return;
   }
   showFilterView("mine");
@@ -416,7 +420,16 @@ function openProductModal(productId, trigger) {
   );
   const phoneLabel = waNumber ? formatKenyanPhone(waNumber) : "";
 
-  const whatsappButton = waNumber
+  // Visitors who are not signed in never receive the number (the server withholds it).
+  const contactLocked = product.contactLocked === true;
+
+  const whatsappButton = contactLocked
+    ? `<button type="button" class="btn-signin-contact" data-action="modal-sign-in" data-id="${id}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Sign in to see seller contact</span>
+        </button>
+        <div class="contact-locked-note">Free and quick: we just email you a 6-digit code. No password needed.</div>`
+    : waNumber
     ? `<a
           href="https://wa.me/${waNumber}?text=${whatsappMessage}"
           target="_blank"
@@ -434,9 +447,11 @@ function openProductModal(productId, trigger) {
     <div class="product-modal-gallery">
       <img src="${escapeHtml(safeImagePath(product.image))}" alt="${title}" class="product-modal-main-img">
       <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-        <span style="font-size: 11.5px; color: #475569; background: #f1f5f9; padding: 4px 10px; border-radius: 9999px; font-weight: 600;">
+        ${product.verified
+          ? `<span class="badge-verified">✓ Verified Chuka student</span>`
+          : `<span style="font-size: 11.5px; color: #475569; background: #f1f5f9; padding: 4px 10px; border-radius: 9999px; font-weight: 600;">
           Seller not yet verified
-        </span>
+        </span>`}
         <span style="font-size: 11.5px; color: #0284c7; background: #e0f2fe; padding: 4px 10px; border-radius: 9999px; font-weight: 600;">
           Condition: ${escapeHtml(product.condition || "Good")}
         </span>
@@ -482,6 +497,12 @@ function openProductModal(productId, trigger) {
           <span>Add to Campus Cart</span>
         </button>
       </div>
+
+      ${product.mine && currentUser ? `
+      <div class="owner-actions">
+        <button type="button" data-action="mark-sold" data-id="${id}">Mark as sold</button>
+        <button type="button" class="owner-delete" data-action="delete-listing" data-id="${id}">Delete listing</button>
+      </div>` : ""}
 
       <!-- Campus Safety Advisory -->
       <div style="margin-top: 18px; padding: 12px; background: #eff6ff; border-radius: 8px; font-size: 11.5px; color: #1e40af; line-height: 1.4;">
@@ -715,6 +736,7 @@ function getOpenOverlays() {
     return el && el.classList.contains("open") ? el : null;
   };
   return [
+    { el: isOpen("signInModalOverlay"), close: closeSignInModal },
     { el: isOpen("checkoutModalOverlay"), close: closeCheckoutModal },
     { el: isOpen("postModalOverlay"), close: closePostModal },
     { el: isOpen("productModalOverlay"), close: closeProductModal },
@@ -839,12 +861,39 @@ function initEventListeners() {
   // Product modal actions
   const modalBody = document.getElementById("productModalBody");
   if (modalBody) {
-    modalBody.addEventListener("click", (e) => {
-      const btn = e.target.closest('[data-action="modal-add-cart"]');
+    modalBody.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-action]");
       if (!btn) return;
       const prod = products.find(p => p.id === btn.dataset.id);
-      if (prod) Cart.addItem(prod, 1);
-      closeProductModal();
+      if (!prod) return;
+      switch (btn.dataset.action) {
+        case "modal-add-cart":
+          Cart.addItem(prod, 1);
+          closeProductModal();
+          break;
+        case "modal-sign-in": {
+          const id = prod.id;
+          closeProductModal();
+          openSignInModal(null, () => openProductModal(id));
+          break;
+        }
+        case "mark-sold":
+        case "delete-listing": {
+          const selling = btn.dataset.action === "mark-sold";
+          if (!selling && !window.confirm(`Delete "${prod.title}"? This cannot be undone.`)) return;
+          btn.disabled = true;
+          const res = selling ? await markListingSold(prod.id) : await deleteListing(prod.id);
+          if (!res.ok) {
+            btn.disabled = false;
+            showToast(res.status === 401 ? "Please sign in again." : (res.message || "Could not update the listing. Try again."), "info");
+            return;
+          }
+          closeProductModal();
+          await loadListings();
+          showToast(selling ? "Marked as sold. It is no longer listed." : "Listing deleted.", "success");
+          break;
+        }
+      }
     });
   }
 
@@ -1043,7 +1092,7 @@ function initEventListeners() {
         }
 
         newProduct = { ...sanitizeProduct(result.listing), mine: true };
-        rememberMyListingId(newProduct.id);
+        if (!currentUser) rememberMyListingId(newProduct.id); // signed-out posts are tracked in this browser only
         products.unshift(newProduct);
       } else {
         // ---- Fallback: browser-only listing (backend not reachable) ----
