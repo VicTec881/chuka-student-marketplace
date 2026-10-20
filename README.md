@@ -54,7 +54,13 @@ Without a backend, listings live only in each visitor's browser. With the backen
 | Method | Path | What it does |
 |---|---|---|
 | `GET` | `/api/listings` | Lists available listings, newest first (`?limit=` up to 200) |
-| `POST` | `/api/listings` | Creates a listing (JSON, with an optional `image` photo as a data URL). Validated on the server; limited to 5 posts per hour per IP |
+| `POST` | `/api/listings` | Creates a listing (JSON, with an optional `image` photo as a data URL). Validated on the server; limited to 5 posts per hour per IP. Anyone can post; signed-in students get a Verified badge and can manage the listing |
+| `PATCH` | `/api/listings?id=…` | `{"status":"sold"}`: the signed-in owner marks a listing sold |
+| `DELETE` | `/api/listings?id=…` | The signed-in owner deletes a listing |
+| `GET` | `/api/auth/me` | Who is signed in (or `null`) |
+| `POST` | `/api/auth/start` | `{email}` emails a 6-digit code, only to `@chuka.ac.ke` addresses |
+| `POST` | `/api/auth/verify` | `{email, code}` signs in (HttpOnly cookie, 30 days) |
+| `POST` | `/api/auth/logout` | Signs out |
 
 **Photos:** the Sell form resizes the chosen photo in the browser (max 1000px JPEG), the server checks the real file type and size (max 1.5 MB), then stores it in a public Supabase Storage bucket named `listing-images`. The bucket is created automatically on the first upload, so no extra setup is needed. Free plan storage is 1 GB.
 
@@ -65,7 +71,20 @@ Raw IP addresses are never stored, only a salted one-way hash used for the rate 
 - Supabase **pauses free projects after 1 week of inactivity**. `vercel.json` schedules a once-a-day request to keep the project active. If it ever does pause, press *Restore project* in the Supabase dashboard.
 - The free plan has **no automatic backups**. Before real students depend on the data, either upgrade or export the table regularly (Table Editor → Export).
 
-**Known limits (until accounts are added)**: anyone can post, nobody can edit or delete a listing, and "My Listings" is remembered per browser.
+### Student sign-in (accounts)
+
+Students sign in with their `@chuka.ac.ke` email (subdomains such as `students.chuka.ac.ke` also work). We email a 6-digit code, there are no passwords. Visitors can browse and post without signing in, but **seller phone/WhatsApp numbers are only sent to signed-in students** (the server withholds them; they are not hidden by CSS). Listings posted while signed in show a **Verified Chuka student** badge and can be marked sold or deleted by their owner.
+
+**One-time setup for sign-in**
+
+1. Run the new part of [`supabase/schema.sql`](supabase/schema.sql) again (SQL Editor). It adds `owner_email` to `listings` and creates the locked `login_codes` table. It is safe to re-run.
+2. Create a free [Brevo](https://www.brevo.com) account (300 emails/day free), verify a sender address (Senders, Domains & dedicated IPs → Senders), and create an API key (SMTP & API → API Keys).
+3. In Vercel add `BREVO_API_KEY` and `MAIL_FROM` (the verified sender address). `SESSION_SECRET` is optional: if you leave it out, the session signing key is derived from `SUPABASE_SECRET_KEY`.
+4. Redeploy.
+
+Notes: codes are valid for 10 minutes, work once, are stored only as a keyed hash, are locked after 5 wrong tries, and each email can request at most 5 codes per hour (one per minute). For reliable inbox delivery, send from an address on a domain you own and authenticate it in Brevo; mail sent "from" a free Gmail address often lands in spam.
+
+**Known limits**: listings posted while signed out cannot be edited or deleted later (there is no proof of who posted them), and "My Listings" for them is remembered per browser.
 
 **Run the tests**: `npm install && npm test`
 

@@ -37,8 +37,44 @@ async function fetchListings() {
   if (!ok || !data || !Array.isArray(data.listings)) {
     throw new Error("Listings API unavailable");
   }
-  return data.listings;
+  return { listings: data.listings, user: data.user && data.user.email ? data.user : null };
 }
+
+// ---- Student sign-in (email code) ----
+async function authCall(action, body) {
+  try {
+    const { ok, status, data } = await apiRequest(`/auth/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    });
+    if (ok) return { ok: true, data };
+    return { ok: false, status, error: (data && data.error) || "unknown", message: data && data.message };
+  } catch (e) {
+    return { ok: false, status: 0, error: "network", message: "Could not reach the server. Check your connection." };
+  }
+}
+
+const authStart = (email) => authCall("start", { email });
+const authVerify = (email, code) => authCall("verify", { email, code });
+const authLogout = () => authCall("logout", {});
+
+// ---- Owner actions ----
+async function manageListing(id, method, body) {
+  try {
+    const { ok, status, data } = await apiRequest(`/listings?id=${encodeURIComponent(id)}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    return { ok, status, message: data && data.message };
+  } catch (e) {
+    return { ok: false, status: 0, message: "Could not reach the server." };
+  }
+}
+
+const markListingSold = (id) => manageListing(id, "PATCH", { status: "sold" });
+const deleteListing = (id) => manageListing(id, "DELETE");
 
 /**
  * Create a listing on the server.
