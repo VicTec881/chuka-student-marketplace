@@ -33,3 +33,30 @@ revoke all on public.listings from anon, authenticated;
 -- Make sure the server's role can use the table even if the project was created with
 -- "Automatically expose new tables" switched off.
 grant select, insert, update, delete on public.listings to service_role;
+
+-- ===== Accounts (added with student sign-in). Safe to run again. =====
+alter table public.listings add column if not exists owner_email text;   -- who posted it (signed-in students)
+create index if not exists listings_owner_idx on public.listings (owner_email);
+
+create table if not exists public.login_codes (
+  email           text primary key,
+  code_hash       text        not null,   -- HMAC of the 6-digit code; the code itself is never stored
+  expires_at      timestamptz not null,
+  attempts        integer     not null default 0,
+  last_sent_at    timestamptz not null,
+  window_start    timestamptz not null,
+  sends_in_window integer     not null default 0
+);
+-- Counts sign-in code requests per (hashed) network address, so the email quota cannot be drained.
+create table if not exists public.login_throttle (
+  ip_hash      text primary key,
+  window_start timestamptz not null,
+  count        integer     not null default 0
+);
+alter table public.login_throttle enable row level security;
+revoke all on public.login_throttle from anon, authenticated;
+grant select, insert, update, delete on public.login_throttle to service_role;
+
+alter table public.login_codes enable row level security;
+revoke all on public.login_codes from anon, authenticated;
+grant select, insert, update, delete on public.login_codes to service_role;

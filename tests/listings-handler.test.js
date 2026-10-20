@@ -143,7 +143,7 @@ test("POST requires JSON", async () => {
 
 test("unsupported methods get 405 and a missing database config gets 503", async () => {
   const handler = createHandler({ getStore: async () => createMemoryStore() });
-  assert.equal((await call(handler, { method: "DELETE" })).status, 405);
+  assert.equal((await call(handler, { method: "PUT" })).status, 405);
 
   const { NotConfiguredError } = require("../lib/errors");
   const unconfigured = createHandler({
