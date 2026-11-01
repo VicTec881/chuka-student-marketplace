@@ -3013,3 +3013,20 @@ img {
 }
 .owner-actions .owner-delete { color: #b91c1c; }
 .badge-verified { font-size: 11.5px; color: #047857; background: #d1fae5; padding: 4px 10px; border-radius: 9999px; font-weight: 600; }
+
+/* Sort & refine bar */
+.refine-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 4px 0 18px;
+}
+.refine-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.refine-field label { font-size: 12px; font-weight: 600; color: var(--text-slate); }
+.refine-meta { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; white-space: nowrap; }
+.refine-count { font-size: 13px; color: #64748b; font-weight: 600; }
+@media (max-width: 760px) {
+  .refine-bar { grid-template-columns: 1fr 1fr; }
+  .refine-meta { grid-column: 1 / -1; padding-bottom: 0; justify-content: space-between; }
+}

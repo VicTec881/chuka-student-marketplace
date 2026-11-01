@@ -300,6 +300,40 @@
         <button class="filter-chip" data-filter="under1000">Under KSh 1,000</button>
       </div>
 
+      <!-- Sort & refine -->
+      <div class="refine-bar" id="refineBar">
+        <div class="refine-field">
+          <label for="refineSort">Sort by</label>
+          <select id="refineSort" class="form-control">
+            <option value="newest">Newest first</option>
+            <option value="price-asc">Price: low to high</option>
+            <option value="price-desc">Price: high to low</option>
+          </select>
+        </div>
+        <div class="refine-field">
+          <label for="refineMin">Min price (KSh)</label>
+          <input type="text" id="refineMin" class="form-control" inputmode="numeric" placeholder="0" autocomplete="off">
+        </div>
+        <div class="refine-field">
+          <label for="refineMax">Max price (KSh)</label>
+          <input type="text" id="refineMax" class="form-control" inputmode="numeric" placeholder="Any" autocomplete="off">
+        </div>
+        <div class="refine-field">
+          <label for="refineCondition">Condition</label>
+          <select id="refineCondition" class="form-control">
+            <option value="all">Any condition</option>
+            <option value="new">Brand new</option>
+            <option value="used">Used</option>
+            <option value="fresh">Freshly prepared</option>
+          </select>
+        </div>
+        <div class="refine-meta">
+          <span id="refineCount" class="refine-count" role="status" aria-live="polite"></span>
+          <button type="button" class="signin-link" id="refineClear" hidden>Clear</button>
+        </div>
+      </div>
+      <p class="signin-error" id="refineMsg" role="alert" hidden></p>
+
       <!-- Products Grid -->
       <div class="products-grid" id="productsGridContainer">
         <!-- Rendered dynamically by app.js -->
@@ -713,6 +747,7 @@
   <!-- Scripts -->
   <script src="js/utils.js"></script>
   <script src="js/data.js"></script>
+  <script src="js/filters.js"></script>
   <script src="js/api.js"></script>
   <script src="js/cart.js"></script>
   <script src="js/account.js"></script>
