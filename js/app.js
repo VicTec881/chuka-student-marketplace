@@ -7,6 +7,8 @@ let activeCategory = "all";
 let activeFilter = "all";
 let currentSearchTerm = "";
 let wishlist = new Set();
+// Extra refinements shown under the filter chips
+const refine = { sort: "newest", minPrice: null, maxPrice: null, condition: "all" };
 let lastFocusedElement = null;
 
 const ALLOWED_BADGES = {
@@ -43,6 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initEventListeners();
   initPhotoUpload();
   initAccountUI();
+  initRefineControls();
 
   const year = document.getElementById("footerYear");
   if (year) year.textContent = new Date().getFullYear();
@@ -199,40 +202,19 @@ function productCardHTML(product) {
 
 // ================= FILTERING =================
 function getVisibleProducts() {
-  let filtered = [...products];
-
-  // Search filter
-  if (currentSearchTerm.trim() !== "") {
-    const q = currentSearchTerm.trim().toLowerCase();
-    filtered = filtered.filter(p =>
-      p.title.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      p.seller.name.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q)
-    );
-  }
-
-  // Category cards
-  if (activeCategory !== "all") {
-    filtered = filtered.filter(p => p.category === activeCategory);
-  }
-
-  // Chips / special views
-  if (activeFilter === "popular") {
-    filtered = filtered.filter(p => p.badgeType === "popular");
-  } else if (activeFilter === "best-deal") {
-    filtered = filtered.filter(p => p.badgeType === "best-deal");
-  } else if (activeFilter === "under1000") {
-    filtered = filtered.filter(p => p.price < 1000);
-  } else if (activeFilter === "saved") {
-    filtered = filtered.filter(p => wishlist.has(p.id));
-  } else if (activeFilter === "mine") {
-    filtered = filtered.filter(p => p.mine === true);
-  } else if (INITIAL_CATEGORIES.some(c => c.id === activeFilter)) {
-    filtered = filtered.filter(p => p.category === activeFilter);
-  }
-
-  return filtered;
+  const categoryNames = {};
+  INITIAL_CATEGORIES.forEach(c => { categoryNames[c.id] = c.name; });
+  return filterAndSortProducts(products, {
+    search: currentSearchTerm,
+    category: activeCategory,
+    filter: activeFilter,
+    saved: wishlist,
+    minPrice: refine.minPrice,
+    maxPrice: refine.maxPrice,
+    condition: refine.condition,
+    sort: refine.sort,
+    categoryNames
+  });
 }
 
 function updateHeadings(count) {
@@ -296,6 +278,10 @@ function renderProducts() {
 
   const filtered = getVisibleProducts();
   updateHeadings(filtered.length);
+  const clearRefine = document.getElementById("refineClear");
+  if (clearRefine) clearRefine.hidden = !refineIsActive();
+  const count = document.getElementById("refineCount");
+  if (count) count.textContent = `${filtered.length} item${filtered.length === 1 ? "" : "s"}`;
 
   container.innerHTML = filtered.length === 0
     ? emptyStateHTML()
@@ -336,9 +322,53 @@ function resetAllFilters() {
   const clearBtn = document.getElementById("searchClearBtn");
   if (clearBtn) clearBtn.style.display = "none";
 
+  resetRefine();
   setActiveChip("all");
   renderCategories();
   renderProducts();
+}
+
+function resetRefine() {
+  refine.sort = "newest";
+  refine.minPrice = null;
+  refine.maxPrice = null;
+  refine.condition = "all";
+  ["refineSort", "refineMin", "refineMax", "refineCondition"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = id === "refineSort" ? "newest" : id === "refineCondition" ? "all" : "";
+  });
+  const msg = document.getElementById("refineMsg");
+  if (msg) msg.hidden = true;
+}
+
+function refineIsActive() {
+  return refine.sort !== "newest" || refine.minPrice !== null || refine.maxPrice !== null || refine.condition !== "all";
+}
+
+function initRefineControls() {
+  const sort = document.getElementById("refineSort");
+  const min = document.getElementById("refineMin");
+  const max = document.getElementById("refineMax");
+  const cond = document.getElementById("refineCondition");
+  const clear = document.getElementById("refineClear");
+  const msg = document.getElementById("refineMsg");
+  if (!sort || !min || !max || !cond) return;
+
+  const apply = () => {
+    refine.sort = sort.value;
+    refine.condition = cond.value;
+    refine.minPrice = parsePriceInput(min.value);
+    refine.maxPrice = parsePriceInput(max.value);
+    const bad = refine.minPrice !== null && refine.maxPrice !== null && refine.minPrice > refine.maxPrice;
+    if (msg) {
+      msg.hidden = !bad;
+      msg.textContent = bad ? "The minimum price is higher than the maximum, so nothing can match." : "";
+    }
+    renderProducts();
+  };
+  [sort, cond].forEach(el => el.addEventListener("change", apply));
+  [min, max].forEach(el => el.addEventListener("input", apply));
+  if (clear) clear.addEventListener("click", () => { resetRefine(); renderProducts(); });
 }
 
 // Switch to a special view ("saved" / "mine") that has no chip of its own.
